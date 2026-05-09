@@ -1,16 +1,33 @@
 const { pool } = require('../config/database');
 
 class Pharmacy {
-  static async create(pharmacyData) {
-    const { pharmacy_name, address, phone, email, latitude, longitude, operating_hours, license_number } = pharmacyData;
+  static async create(pharmacyData, client = null) {
+    const { 
+      pharmacy_name, 
+      address, 
+      contact_phone, 
+      contact_email, 
+      latitude, 
+      longitude, 
+      operating_hours, 
+      user_id,
+      is_verified = false 
+    } = pharmacyData;
+    
     const query = `
-      INSERT INTO pharmacies (pharmacy_name, address, phone, email, latitude, longitude, operating_hours, license_number)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO pharmacies (pharmacy_name, address, contact_phone, contact_email, latitude, longitude, operating_hours, user_id, is_verified)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
-    const values = [pharmacy_name, address, phone, email, latitude, longitude, operating_hours, license_number];
-    const result = await pool.query(query, values);
-    return result.rows[0];
+    const values = [pharmacy_name, address, contact_phone, contact_email, latitude, longitude, operating_hours, user_id, is_verified];
+    
+    if (client) {
+      const result = await client.query(query, values);
+      return result.rows[0];
+    } else {
+      const result = await pool.query(query, values);
+      return result.rows[0];
+    }
   }
 
   static async findAll() {
@@ -25,6 +42,12 @@ class Pharmacy {
     return result.rows[0];
   }
 
+  static async findByUserId(userId) {
+    const query = 'SELECT * FROM pharmacies WHERE user_id = $1';
+    const result = await pool.query(query, [userId]);
+    return result.rows[0];
+  }
+
   static async findNearby(lat, lng, radius = 5) {
     const query = `
       SELECT *, 
@@ -32,6 +55,7 @@ class Pharmacy {
              cos(radians(longitude) - radians($2)) + 
              sin(radians($1)) * sin(radians(latitude)))) AS distance
       FROM pharmacies
+      WHERE is_verified = true
       HAVING distance < $3
       ORDER BY distance
     `;
@@ -40,7 +64,7 @@ class Pharmacy {
   }
 
   static async findByEmail(email) {
-    const query = 'SELECT * FROM pharmacies WHERE email = $1';
+    const query = 'SELECT * FROM pharmacies WHERE contact_email = $1';
     const result = await pool.query(query, [email]);
     return result.rows[0];
   }
@@ -55,6 +79,23 @@ class Pharmacy {
     `;
     const result = await pool.query(query, [pharmacyId]);
     return result.rows;
+  }
+
+  static async updateImageUrl(pharmacyId, imageUrl, client = null) {
+    const query = `
+      UPDATE pharmacies 
+      SET image_url = $1 
+      WHERE pharmacy_id = $2 
+      RETURNING *
+    `;
+    
+    if (client) {
+      const result = await client.query(query, [imageUrl, pharmacyId]);
+      return result.rows[0];
+    } else {
+      const result = await pool.query(query, [imageUrl, pharmacyId]);
+      return result.rows[0];
+    }
   }
 }
 

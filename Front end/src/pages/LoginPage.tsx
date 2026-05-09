@@ -34,12 +34,17 @@ export function LoginPage() {
       const response = await api.login(formData.email, formData.password);
       console.log('Login successful:', response);
       
-      // Store token in localStorage
+      // Store token and user data in localStorage
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
       
+      // Store pharmacy data if user is pharmacy staff
+      if (response.pharmacy) {
+        localStorage.setItem('pharmacy', JSON.stringify(response.pharmacy));
+      }
+      
       // Redirect based on user type
-      if (response.user.user_type === 'pharmacy') {
+      if (response.user.role_name === 'pharmacy') {
         navigate('/pharmacy/dashboard');
       } else {
         navigate('/patient');

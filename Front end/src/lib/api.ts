@@ -1,4 +1,14 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:8080/api';
+
+// Helper to get auth headers
+const getAuthHeaders = (): Record<string, string> => {
+  const token = localStorage.getItem('token');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
 
 export const api = {
   // Medicines
@@ -33,14 +43,23 @@ export const api = {
     return response.json();
   },
 
-  async getPharmacyInventory(pharmacyId: number) {
-    const response = await fetch(`${API_BASE_URL}/inventory/${pharmacyId}`);
+  async getPharmacyInventory(pharmacyId?: number) {
+    // Use protected endpoint for pharmacy staff (no pharmacyId needed - from token)
+    // or public endpoint with pharmacyId for patients
+    const endpoint = pharmacyId ? `${API_BASE_URL}/inventory/${pharmacyId}` : `${API_BASE_URL}/inventory/my-inventory`;
+    const response = await fetch(endpoint, {
+      headers: getAuthHeaders(),
+    });
     if (!response.ok) throw new Error('Failed to get pharmacy inventory');
     return response.json();
   },
 
-  async getTransactions(pharmacyId: number) {
-    const response = await fetch(`${API_BASE_URL}/inventory/${pharmacyId}/transactions`);
+  async getTransactions(pharmacyId?: number) {
+    // Use protected endpoint for pharmacy staff (no pharmacyId needed - from token)
+    const endpoint = pharmacyId ? `${API_BASE_URL}/inventory/${pharmacyId}/transactions` : `${API_BASE_URL}/inventory/my-inventory/transactions`;
+    const response = await fetch(endpoint, {
+      headers: getAuthHeaders(),
+    });
     if (!response.ok) throw new Error('Failed to get transactions');
     return response.json();
   },
@@ -51,22 +70,22 @@ export const api = {
     return response.json();
   },
 
-  // Inventory
-  async addStock(pharmacyId: number, medicineId: number, quantity: number, expiryDate?: string) {
+  // Inventory (pharmacyId now comes from auth token, not parameter)
+  async addStock(medicineId: number, quantity: number, expiryDate?: string) {
     const response = await fetch(`${API_BASE_URL}/inventory/add`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pharmacy_id: pharmacyId, medicine_id: medicineId, quantity, expiry_date: expiryDate }),
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ medicine_id: medicineId, quantity, expiry_date: expiryDate }),
     });
     if (!response.ok) throw new Error('Failed to add stock');
     return response.json();
   },
 
-  async reduceStock(pharmacyId: number, medicineId: number, quantity: number) {
+  async reduceStock(medicineId: number, quantity: number) {
     const response = await fetch(`${API_BASE_URL}/inventory/reduce`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pharmacy_id: pharmacyId, medicine_id: medicineId, quantity }),
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ medicine_id: medicineId, quantity }),
     });
     if (!response.ok) throw new Error('Failed to reduce stock');
     return response.json();
@@ -80,6 +99,18 @@ export const api = {
       body: JSON.stringify(userData),
     });
     if (!response.ok) throw new Error('Failed to register');
+    return response.json();
+  },
+
+  async registerPharmacy(formData: FormData) {
+    const response = await fetch(`${API_BASE_URL}/pharmacy-registration/register`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to register pharmacy' }));
+      throw new Error(error.error || 'Failed to register pharmacy');
+    }
     return response.json();
   },
 

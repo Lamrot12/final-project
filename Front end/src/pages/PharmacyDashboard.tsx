@@ -42,13 +42,9 @@ export function PharmacyDashboard() {
   const fetchInventory = async () => {
     try {
       setLoading(true);
-      const pharmacyId = pharmacyInfo?.pharmacy_id;
-      if (!pharmacyId) {
-        setLoading(false);
-        return;
-      }
-      console.log('Fetching inventory for pharmacy:', pharmacyId);
-      const inventory = await api.getPharmacyInventory(pharmacyId);
+      // Use authenticated endpoint - pharmacyId comes from token
+      console.log('Fetching inventory for logged-in pharmacy');
+      const inventory = await api.getPharmacyInventory();
       console.log('Inventory fetched:', inventory);
       console.log('Inventory length:', inventory?.length);
       console.log('Is array:', Array.isArray(inventory));
@@ -72,10 +68,9 @@ export function PharmacyDashboard() {
 
   const fetchTransactions = async () => {
     try {
-      const pharmacyId = pharmacyInfo?.pharmacy_id;
-      if (!pharmacyId) return;
-      console.log('Fetching transactions for pharmacy:', pharmacyId);
-      const transactions = await api.getTransactions(pharmacyId);
+      // Use authenticated endpoint - pharmacyId comes from token
+      console.log('Fetching transactions for logged-in pharmacy');
+      const transactions = await api.getTransactions();
       console.log('Transactions fetched:', transactions);
       setTransactions(transactions);
     } catch (err: any) {
@@ -175,18 +170,19 @@ export function PharmacyDashboard() {
   };
 
   const handleAddStock = async () => {
-    if (!selectedMedicine || !quantity) {
-      setError('Please select a medicine and enter quantity');
+    const qty = parseInt(quantity);
+    
+    if (!selectedMedicine) {
+      setError('Please select a valid medicine from the dropdown');
+      return;
+    }
+    if (!quantity || isNaN(qty) || qty <= 0) {
+      setError('Please enter a valid quantity greater than 0');
       return;
     }
     try {
-      const pharmacyId = pharmacyInfo?.pharmacy_id;
-      if (!pharmacyId) {
-        setError('Pharmacy not loaded');
-        return;
-      }
       setLoading(true);
-      await api.addStock(pharmacyId, parseInt(selectedMedicine), parseInt(quantity), expiryDate);
+      await api.addStock(selectedMedicine, qty, expiryDate);
 
       await fetchInventory();
       await fetchTransactions();
@@ -208,18 +204,19 @@ export function PharmacyDashboard() {
   };
 
   const handleReduceStock = async () => {
-    if (!reduceMedicine || !reduceQuantity) {
-      setError('Please select a medicine and enter quantity');
+    const qty = parseInt(reduceQuantity);
+    
+    if (!reduceMedicine) {
+      setError('Please select a valid medicine from the dropdown');
+      return;
+    }
+    if (!reduceQuantity || isNaN(qty) || qty <= 0) {
+      setError('Please enter a valid quantity greater than 0');
       return;
     }
     try {
-      const pharmacyId = pharmacyInfo?.pharmacy_id;
-      if (!pharmacyId) {
-        setError('Pharmacy not loaded');
-        return;
-      }
       setLoading(true);
-      await api.reduceStock(pharmacyId, parseInt(reduceMedicine), parseInt(reduceQuantity));
+      await api.reduceStock(reduceMedicine, qty);
 
       await fetchInventory();
       await fetchTransactions();
@@ -246,7 +243,6 @@ export function PharmacyDashboard() {
     { id: "transactions", icon: History, label: "Transactions" },
     { id: "notifications", icon: Bell, label: "Notifications", badge: notifications.length },
     { id: "analytics", icon: BarChart3, label: "Analytics" },
-    { id: "reports", icon: FileText, label: "Reports" },
   ];
 
   return (
@@ -319,7 +315,14 @@ export function PharmacyDashboard() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">{pharmacyInfo?.pharmacy_name || 'Pharmacy'}</h1>
-                  <p className="text-sm text-slate-500 mt-0.5">Good morning! Here's your overview.</p>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {(() => {
+                      const hour = new Date().getHours();
+                      if (hour < 12) return "Good morning! Here's your overview.";
+                      if (hour < 18) return "Good afternoon! Here's your overview.";
+                      return "Good evening! Here's your overview.";
+                    })()}
+                  </p>
                 </div>
               </div>
             </div>
@@ -350,32 +353,50 @@ export function PharmacyDashboard() {
                       <span className="text-xs bg-primary text-white px-2 py-1 rounded-full">{notifications.length}</span>
                     </div>
                     <div className="max-h-80 overflow-y-auto">
-                      {notifications.map((notif) => (
-                        <div key={notif.id} className="p-4 border-b border-slate-100 hover:bg-slate-50">
-                          <div className="flex items-start gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                              notif.type === "warning" ? "bg-yellow-100" :
-                              notif.type === "success" ? "bg-green-100" :
-                              "bg-blue-100"
-                            }`}>
-                              {notif.type === "warning" ? (
-                                <AlertTriangle className="w-4 h-4 text-yellow-600" />
-                              ) : notif.type === "success" ? (
-                                <Check className="w-4 h-4 text-green-600" />
-                              ) : (
-                                <Bell className="w-4 h-4 text-blue-600" />
-                              )}
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-sm text-slate-900">{notif.message}</p>
-                              <p className="text-xs text-slate-500 mt-1">{notif.time}</p>
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center">
+                          <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
+                            <CheckCircle className="w-6 h-6 text-green-600" />
+                          </div>
+                          <p className="text-sm text-slate-500">No new notifications</p>
+                        </div>
+                      ) : (
+                        notifications.map((notif) => (
+                          <div key={notif.id} className="p-4 border-b border-slate-100 hover:bg-slate-50">
+                            <div className="flex items-start gap-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                notif.type === "error" ? "bg-red-100" :
+                                notif.type === "warning" ? "bg-yellow-100" :
+                                notif.type === "success" ? "bg-green-100" :
+                                "bg-blue-100"
+                              }`}>
+                                {notif.type === "error" ? (
+                                  <AlertTriangle className="w-4 h-4 text-red-600" />
+                                ) : notif.type === "warning" ? (
+                                  <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                                ) : notif.type === "success" ? (
+                                  <Check className="w-4 h-4 text-green-600" />
+                                ) : (
+                                  <Bell className="w-4 h-4 text-blue-600" />
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm text-slate-900">{notif.message}</p>
+                                <p className="text-xs text-slate-500 mt-1">{notif.time}</p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                     <div className="p-3 border-t border-slate-200">
-                      <Button variant="outline" className="w-full text-sm">View All Notifications</Button>
+                      <Button 
+                        variant="outline" 
+                        className="w-full text-sm"
+                        onClick={() => { setActiveTab("notifications"); setShowNotifications(false); }}
+                      >
+                        View All Notifications
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -482,7 +503,7 @@ export function PharmacyDashboard() {
                     <Button 
                       variant="outline" 
                       className="w-full justify-start gap-3 hover:bg-primary/5 hover:border-primary/30"
-                      onClick={() => { setActiveTab("bincard"); setShowAddForm(true); setShowReduceModal(false); setSelectedMedicine(""); setQuantity(""); setExpiryDate(""); setError(""); }}
+                      onClick={() => { setShowAddForm(true); setShowReduceModal(false); setSelectedMedicine(""); setQuantity(""); setExpiryDate(""); setError(""); }}
                     >
                       <Plus className="w-4 h-4" />
                       Add Stock
@@ -490,18 +511,10 @@ export function PharmacyDashboard() {
                     <Button 
                       variant="outline" 
                       className="w-full justify-start gap-3 hover:bg-primary/5 hover:border-primary/30"
-                      onClick={() => { setActiveTab("bincard"); setShowReduceModal(true); setReduceMedicine(""); setReduceQuantity(""); }}
+                      onClick={() => { setShowReduceModal(true); setShowAddForm(false); setReduceMedicine(""); setReduceQuantity(""); }}
                     >
                       <Minus className="w-4 h-4" />
                       Reduce Stock
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start gap-3 hover:bg-primary/5 hover:border-primary/30"
-                      onClick={() => setActiveTab("reports")}
-                    >
-                      <FileText className="w-4 h-4" />
-                      Generate Report
                     </Button>
                     <Button 
                       variant="outline" 
@@ -514,6 +527,134 @@ export function PharmacyDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Add/Reduce Stock Form - shown when Quick Actions clicked */}
+              {(showAddForm || showReduceModal) && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="font-semibold text-slate-900 text-lg">
+                      {showReduceModal ? "Reduce Stock from Inventory" : "Add Stock to Inventory"}
+                    </h2>
+                    <button 
+                      onClick={() => { setShowAddForm(false); setShowReduceModal(false); }}
+                      className="text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  {error && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-xl mb-4">
+                      <p className="text-red-700 text-sm flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" />
+                        {error}
+                      </p>
+                    </div>
+                  )}
+                  {successMessage && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-xl mb-4">
+                      <p className="text-green-700 text-sm flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" />
+                        {successMessage}
+                      </p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-slate-700">Select Medicine</Label>
+                      <select
+                        value={showReduceModal ? reduceMedicine : selectedMedicine}
+                        onChange={(e) => {
+                          if (showReduceModal) {
+                            setReduceMedicine(e.target.value);
+                          } else {
+                            setSelectedMedicine(e.target.value);
+                          }
+                        }}
+                        className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      >
+                        <option value="">Choose medicine...</option>
+                        {showReduceModal 
+                          ? medicines.map((med) => (
+                              <option key={med.medicine_id} value={med.medicine_id}>
+                                {med.brand_name || med.generic_name} (Current: {med.quantity})
+                              </option>
+                            ))
+                          : allMedicines.map((med) => (
+                              <option key={med.id} value={med.id}>
+                                {med.name}
+                              </option>
+                            ))
+                        }
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-slate-700">Quantity</Label>
+                      <Input
+                        type="number"
+                        value={showReduceModal ? reduceQuantity : quantity}
+                        onChange={(e) => {
+                          if (showReduceModal) {
+                            setReduceQuantity(e.target.value);
+                          } else {
+                            setQuantity(e.target.value);
+                          }
+                        }}
+                        placeholder="Enter quantity"
+                        className="px-4 py-3 border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      />
+                    </div>
+                    {!showReduceModal && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-slate-700">Expiry Date</Label>
+                        <Input
+                          type="date"
+                          min={new Date().toISOString().split('T')[0]}
+                          value={expiryDate}
+                          onChange={(e) => setExpiryDate(e.target.value)}
+                          className="px-4 py-3 border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        />
+                      </div>
+                    )}
+                    {showReduceModal && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-slate-700">Reason</Label>
+                        <select className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all">
+                          <option value="">Select reason...</option>
+                          <option value="sale">Sale</option>
+                          <option value="damage">Damage</option>
+                          <option value="expiry">Expired</option>
+                          <option value="loss">Loss</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex items-end">
+                      <Button
+                        className="w-full gap-2 h-11"
+                        onClick={() => {
+                          if (showReduceModal) {
+                            handleReduceStock();
+                          } else {
+                            handleAddStock();
+                          }
+                        }}
+                      >
+                        {showReduceModal ? (
+                          <>
+                            <Minus className="w-4 h-4" />
+                            Reduce Stock
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4" />
+                            Add Stock
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -711,6 +852,7 @@ export function PharmacyDashboard() {
                         <Label className="text-sm font-medium text-slate-700">Expiry Date</Label>
                         <Input
                           type="date"
+                          min={new Date().toISOString().split('T')[0]}
                           value={expiryDate}
                           onChange={(e) => setExpiryDate(e.target.value)}
                           className="px-4 py-3 border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
@@ -1006,35 +1148,59 @@ export function PharmacyDashboard() {
                     {notifications.length} unread
                   </span>
                 </div>
-                <Button variant="outline" size="sm">Mark All as Read</Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setNotifications([])}
+                >
+                  Mark All as Read
+                </Button>
               </div>
               <div className="divide-y divide-slate-100">
-                {notifications.map((notif) => (
-                  <div key={notif.id} className="p-6 hover:bg-slate-50 transition-colors">
-                    <div className="flex items-start gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                        notif.type === "warning" ? "bg-yellow-100" :
-                        notif.type === "success" ? "bg-green-100" :
-                        "bg-blue-100"
-                      }`}>
-                        {notif.type === "warning" ? (
-                          <AlertTriangle className="w-6 h-6 text-yellow-600" />
-                        ) : notif.type === "success" ? (
-                          <Check className="w-6 h-6 text-green-600" />
-                        ) : (
-                          <Bell className="w-6 h-6 text-blue-600" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-slate-900">{notif.message}</p>
-                        <p className="text-sm text-slate-500 mt-1">{notif.time}</p>
-                      </div>
-                      <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600">
-                        <X className="w-4 h-4" />
-                      </Button>
+                {notifications.length === 0 ? (
+                  <div className="p-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">All Caught Up!</h3>
+                    <p className="text-slate-500">No notifications at the moment. Your inventory looks good.</p>
                   </div>
-                ))}
+                ) : (
+                  notifications.map((notif) => (
+                    <div key={notif.id} className="p-6 hover:bg-slate-50 transition-colors">
+                      <div className="flex items-start gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                          notif.type === "error" ? "bg-red-100" :
+                          notif.type === "warning" ? "bg-yellow-100" :
+                          notif.type === "success" ? "bg-green-100" :
+                          "bg-blue-100"
+                        }`}>
+                          {notif.type === "error" ? (
+                            <AlertTriangle className="w-6 h-6 text-red-600" />
+                          ) : notif.type === "warning" ? (
+                            <AlertTriangle className="w-6 h-6 text-yellow-600" />
+                          ) : notif.type === "success" ? (
+                            <Check className="w-6 h-6 text-green-600" />
+                          ) : (
+                            <Bell className="w-6 h-6 text-blue-600" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-slate-900">{notif.message}</p>
+                          <p className="text-sm text-slate-500 mt-1">{notif.time}</p>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-slate-400 hover:text-slate-600"
+                          onClick={() => setNotifications(prev => prev.filter(n => n.id !== notif.id))}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -1179,6 +1345,7 @@ export function PharmacyDashboard() {
                           <Label className="text-sm font-medium text-slate-700">Expiry Date</Label>
                           <Input
                             type="date"
+                            min={new Date().toISOString().split('T')[0]}
                             value={expiryDate}
                             onChange={(e) => setExpiryDate(e.target.value)}
                             className="px-4 py-3 border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"

@@ -7,11 +7,16 @@ const inventoryController = {
     console.log('=== addStock called ===');
     const client = await pool.connect();
     try {
-      const { pharmacy_id, medicine_id, quantity, expiry_date } = req.body;
+      // Use pharmacyId from authenticated user
+      const pharmacy_id = req.user.pharmacyId;
+      const { medicine_id, quantity, expiry_date } = req.body;
       console.log('addStock called with:', { pharmacy_id, medicine_id, quantity, expiry_date });
 
-      if (!pharmacy_id || !medicine_id || !quantity) {
-        return res.status(400).json({ error: 'pharmacy_id, medicine_id, and quantity are required' });
+      if (!pharmacy_id) {
+        return res.status(403).json({ error: 'Only pharmacy staff can manage inventory' });
+      }
+      if (!medicine_id || !quantity) {
+        return res.status(400).json({ error: 'medicine_id and quantity are required' });
       }
 
       await client.query('BEGIN');
@@ -70,12 +75,17 @@ const inventoryController = {
 
   async reduceStock(req, res) {
     try {
-      const { pharmacy_id, medicine_id, quantity } = req.body;
+      // Use pharmacyId from authenticated user
+      const pharmacy_id = req.user.pharmacyId;
+      const { medicine_id, quantity } = req.body;
       console.log('reduceStock called with:', { pharmacy_id, medicine_id, quantity });
 
-      if (!pharmacy_id || !medicine_id || !quantity) {
+      if (!pharmacy_id) {
+        return res.status(403).json({ error: 'Only pharmacy staff can manage inventory' });
+      }
+      if (!medicine_id || !quantity) {
         console.error('Missing required fields');
-        return res.status(400).json({ error: 'pharmacy_id, medicine_id, and quantity are required' });
+        return res.status(400).json({ error: 'medicine_id and quantity are required' });
       }
 
       // Get current stock
@@ -117,8 +127,13 @@ const inventoryController = {
   async getInventory(req, res) {
     console.log('=== getInventory START ===');
     try {
-      const { pharmacyId } = req.params;
+      // Use pharmacyId from authenticated user
+      const pharmacyId = req.user.pharmacyId || req.params.pharmacyId;
       console.log('getInventory called with pharmacyId:', pharmacyId);
+      
+      if (!pharmacyId) {
+        return res.status(403).json({ error: 'Pharmacy ID required' });
+      }
 
       const result = await pool.query(`
         SELECT m.*, ps.stock_id, ps.quantity, ps.expiry_date
@@ -140,7 +155,12 @@ const inventoryController = {
 
   async getTransactions(req, res) {
     try {
-      const { pharmacyId } = req.params;
+      // Use pharmacyId from authenticated user
+      const pharmacyId = req.user.pharmacyId || req.params.pharmacyId;
+      
+      if (!pharmacyId) {
+        return res.status(403).json({ error: 'Pharmacy ID required' });
+      }
 
       const result = await pool.query(`
         SELECT t.*, m.brand_name, m.generic_name

@@ -1,4 +1,5 @@
 const User = require('../models/user');
+const Pharmacy = require('../models/pharmacy');
 const jwt = require('jsonwebtoken');
 
 const authController = {
@@ -12,16 +13,23 @@ const authController = {
         return res.status(400).json({ error: 'User already exists' });
       }
       
+      // Get role_id from role_name
+      const roleName = user_type || 'patient';
+      const roleId = await User.getRoleId(roleName);
+      if (!roleId) {
+        return res.status(400).json({ error: 'Invalid user type' });
+      }
+      
       const user = await User.create({
         email,
         password,
         full_name,
         phone,
-        user_type: user_type || 'patient'
+        role_id: roleId
       });
       
       const token = jwt.sign(
-        { userId: user.user_id, userType: user.user_type },
+        { userId: user.user_id, userType: roleName },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRE || '7d' }
       );
@@ -57,27 +65,34 @@ const authController = {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
       
-      console.log('User found:', { userId: user.user_id, email: user.email, userType: user.user_type });
+      console.log('User found:', { userId: user.user_id, email: user.email, userType: user.role_name });
       
-      const isValidPassword = await User.verifyPassword(trimmedPassword, user.password);
+      const isValidPassword = await User.verifyPassword(trimmedPassword, user.password_hash);
       console.log('Password verification:', isValidPassword);
       
       if (!isValidPassword) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
       
+      // If user is pharmacy staff, fetch pharmacy data
+      let pharmacy = null;
+      if (user.role_name === 'pharmacy') {
+        pharmacy = await Pharmacy.findByUserId(user.user_id);
+      }
+      
       const token = jwt.sign(
-        { userId: user.user_id, userType: user.user_type },
+        { userId: user.user_id, userType: user.role_name, pharmacyId: pharmacy?.pharmacy_id },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRE || '7d' }
       );
       
       // Remove password from response
-      const { password: _, ...userWithoutPassword } = user;
+      const { password_hash: _, ...userWithoutPassword } = user;
       
       res.json({
         message: 'Login successful',
         user: userWithoutPassword,
+        pharmacy,
         token
       });
     } catch (error) {
