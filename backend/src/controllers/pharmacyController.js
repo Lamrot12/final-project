@@ -73,6 +73,32 @@ const pharmacyController = {
       console.error('Error getting pharmacy inventory:', error);
       res.status(500).json({ error: 'Failed to get pharmacy inventory' });
     }
+  },
+
+  async updatePharmacy(req, res) {
+    try {
+      const pharmacyId = req.user.pharmacyId;
+      const pharmacyData = req.body;
+
+      const updatedPharmacy = await Pharmacy.updatePharmacy(pharmacyId, pharmacyData);
+      res.json(updatedPharmacy);
+    } catch (error) {
+      console.error('Error updating pharmacy:', error);
+      res.status(500).json({ error: 'Failed to update pharmacy' });
+    }
+  },
+
+  async toggleOpenStatus(req, res) {
+    try {
+      const pharmacyId = req.user.pharmacyId;
+      const { is_open } = req.body;
+
+      const updatedPharmacy = await Pharmacy.toggleOpenStatus(pharmacyId, is_open);
+      res.json(updatedPharmacy);
+    } catch (error) {
+      console.error('Error toggling open status:', error);
+      res.status(500).json({ error: 'Failed to update open status' });
+    }
   }
 };
 

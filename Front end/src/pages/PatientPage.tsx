@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Upload, MapPin, Pill, LogOut, Star, Clock, Phone, Navigation, CheckCircle, TrendingUp, MessageCircle, X } from "lucide-react";
+import { Search, Upload, MapPin, Pill, LogOut, ArrowLeft, Star, Clock, Phone, Navigation, CheckCircle, TrendingUp, MessageCircle, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
 
@@ -12,6 +12,12 @@ export function PatientPage() {
   const [nearbyPharmacies, setNearbyPharmacies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    setIsLoggedIn(!!token);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -31,44 +37,23 @@ export function PatientPage() {
         searches: m.search_count || 0
       })));
       
-      // Fetch nearby pharmacies (using Addis Ababa coordinates as default)
-      const pharmacies = await api.getNearbyPharmacies(8.9636, 38.7428, 10);
+      // Fetch all pharmacies
+      const pharmacies = await api.getAllPharmacies();
       setNearbyPharmacies(pharmacies.map((p: any) => ({
         id: p.pharmacy_id,
         name: p.pharmacy_name,
         address: p.address,
-        distance: p.distance ? `${p.distance.toFixed(1)} km` : 'Unknown',
+        distance: 'Nearby',
         rating: 4.5,
         reviews: Math.floor(Math.random() * 200) + 50,
-        isOpen: true,
-        phone: p.phone || '+251 911 000 000',
+        isOpen: p.is_open !== false,
+        phone: p.contact_phone || '+251 911 000 000',
         image: "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=400&h=300&fit=crop"
       })));
       
     } catch (err) {
       console.error('Error fetching data:', err);
-      setError('Failed to load data. Using fallback data.');
-      
-      // Fallback to hardcoded data if API fails
-      setPopularMedicines([
-        { id: 1, name: "Amoxicillin 500mg", category: "Antibiotic", searches: 15420 },
-        { id: 2, name: "Paracetamol 500mg", category: "Pain Relief", searches: 12350 },
-        { id: 3, name: "Ibuprofen 400mg", category: "Pain Relief", searches: 9870 },
-        { id: 4, name: "Omeprazole 20mg", category: "Antacid", searches: 8650 },
-        { id: 5, name: "Metformin 500mg", category: "Diabetes", searches: 7890 },
-        { id: 6, name: "Lisinopril 10mg", category: "Blood Pressure", searches: 6540 },
-        { id: 7, name: "Aspirin 100mg", category: "Pain Relief", searches: 5430 },
-        { id: 8, name: "Vitamin D3", category: "Supplements", searches: 4890 },
-      ]);
-      
-      setNearbyPharmacies([
-        { id: 1, name: "Abeba Pharmacy", address: "Bole, Addis Ababa", distance: "0.8 km", rating: 4.8, reviews: 124, isOpen: true, phone: "+251 911 123 456", image: "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=400&h=300&fit=crop" },
-        { id: 2, name: "MediCare Plus", address: "Kazanchis, Addis Ababa", distance: "1.2 km", rating: 4.6, reviews: 89, isOpen: true, phone: "+251 911 234 567", image: "https://images.unsplash.com/photo-1631549916768-4119b2e5f926?w=400&h=300&fit=crop" },
-        { id: 3, name: "Health First", address: "Megenagna, Addis Ababa", distance: "1.5 km", rating: 4.5, reviews: 67, isOpen: false, phone: "+251 911 345 678", image: "https://images.unsplash.com/photo-1576726825112-4d6eb84c9d2b?w=400&h=300&fit=crop" },
-        { id: 4, name: "Quick Meds", address: "Piassa, Addis Ababa", distance: "2.0 km", rating: 4.7, reviews: 156, isOpen: true, phone: "+251 911 456 789", image: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&h=300&fit=crop" },
-        { id: 5, name: "City Pharmacy", address: "Meskel Square, Addis Ababa", distance: "2.3 km", rating: 4.4, reviews: 92, isOpen: true, phone: "+251 911 567 890", image: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=400&h=300&fit=crop" },
-        { id: 6, name: "Wellness Center", address: "Casa, Addis Ababa", distance: "2.8 km", rating: 4.9, reviews: 203, isOpen: true, phone: "+251 911 678 901", image: "https://images.unsplash.com/photo-1607619055127-2e9b3c3e0e1a?w=400&h=300&fit=crop" },
-      ]);
+      setError('Failed to load pharmacy data. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -102,8 +87,11 @@ export function PatientPage() {
             </Button>
             <Link to="/">
               <Button variant="outline" className="gap-2">
-                <LogOut className="w-4 h-4" />
-                Logout
+                {isLoggedIn ? (
+                  <><LogOut className="w-4 h-4" /> Logout</>
+                ) : (
+                  <><ArrowLeft className="w-4 h-4" /> Go Back</>
+                )}
               </Button>
             </Link>
           </div>
@@ -258,7 +246,7 @@ export function PatientPage() {
 
       {/* Chat Window */}
       {showChat && (
-        <div className="fixed right-0 top-0 h-full w-96 bg-white shadow-2xl border-l border-slate-200 z-50 flex flex-col">
+        <div className="fixed right-0 top-0 w-96 bg-white shadow-2xl border-l border-slate-200 z-50 flex flex-col">
           <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -286,7 +274,7 @@ export function PatientPage() {
               <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                 <Pill className="w-4 h-4 text-primary" />
               </div>
-              <div className="bg-white rounded-2xl rounded-tl-none p-4 max-w-[280px] shadow-sm">
+              <div className="bg-white rounded-2xl rounded-tl-none p-4 mb-145 max-w-[280px] shadow-sm">
                 <p className="text-sm text-slate-700">Hello! I'm your medicine assistant. Ask me about any medicine and I'll help you understand its uses, dosage, and side effects.</p>
               </div>
             </div>

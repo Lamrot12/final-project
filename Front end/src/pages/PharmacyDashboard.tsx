@@ -27,13 +27,46 @@ export function PharmacyDashboard() {
   const [allMedicines, setAllMedicines] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [successMessage, setSuccessMessage] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isEditingPharmacy, setIsEditingPharmacy] = useState(false);
+  const [editPharmacyData, setEditPharmacyData] = useState({
+    pharmacy_name: "",
+    address: "",
+    contact_phone: "",
+    contact_email: "",
+    operating_hours: "",
+    latitude: "",
+    longitude: ""
+  });
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
+  // Filter medicines and transactions based on search query
+  const filteredMedicines = medicines.filter(med =>
+    med.brand_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    med.generic_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredTransactions = transactions.filter(tx =>
+    tx.brand_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tx.generic_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tx.transaction_type?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   const fetchPharmacyInfo = async () => {
     try {
+      // First check if pharmacy data exists in localStorage (from login)
+      const storedPharmacy = localStorage.getItem('pharmacy');
+      if (storedPharmacy) {
+        setPharmacyInfo(JSON.parse(storedPharmacy));
+        return;
+      }
+      // Otherwise fetch from API
       const pharmacy = await api.getPharmacyByEmail(user.email);
-      setPharmacyInfo(pharmacy);
+      if (pharmacy) {
+        setPharmacyInfo(pharmacy);
+        localStorage.setItem('pharmacy', JSON.stringify(pharmacy));
+      }
     } catch (err: any) {
       console.error('Error fetching pharmacy info:', err);
     }
@@ -151,22 +184,84 @@ export function PharmacyDashboard() {
   };
 
   useEffect(() => {
-    fetchPharmacyInfo();
-    fetchAllMedicines();
+    const loadAllData = async () => {
+      await fetchPharmacyInfo();
+      await fetchAllMedicines();
+      await fetchInventory();
+      await fetchTransactions();
+    };
+    loadAllData();
   }, []);
 
   useEffect(() => {
-    if (pharmacyInfo?.pharmacy_id) {
-      fetchInventory();
-      fetchTransactions();
+    if (medicines.length > 0) {
       generateNotifications();
     }
-  }, [pharmacyInfo]);
+  }, [medicines]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('pharmacy');
     navigate('/');
+  };
+
+  const handleEditPharmacy = () => {
+    setIsEditingPharmacy(true);
+    setEditPharmacyData({
+      pharmacy_name: pharmacyInfo?.pharmacy_name || "",
+      address: pharmacyInfo?.address || "",
+      contact_phone: pharmacyInfo?.contact_phone || "",
+      contact_email: pharmacyInfo?.contact_email || "",
+      operating_hours: pharmacyInfo?.operating_hours || "",
+      latitude: pharmacyInfo?.latitude?.toString() || "",
+      longitude: pharmacyInfo?.longitude?.toString() || ""
+    });
+  };
+
+  const handleSavePharmacy = async () => {
+    try {
+      setLoading(true);
+      const updated = await api.updatePharmacy(editPharmacyData);
+      setPharmacyInfo(updated);
+      localStorage.setItem('pharmacy', JSON.stringify(updated));
+      setIsEditingPharmacy(false);
+      setSuccessMessage('Pharmacy information updated successfully!');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to update pharmacy information');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingPharmacy(false);
+    setError('');
+  };
+
+  const handleToggleOpenStatus = async () => {
+    console.log('Toggle clicked! Current status:', pharmacyInfo?.is_open);
+    const currentStatus = pharmacyInfo?.is_open !== false;
+    const newStatus = !currentStatus;
+
+    // Immediate visual feedback
+    setPharmacyInfo({ ...pharmacyInfo, is_open: newStatus });
+
+    try {
+      console.log('New status will be:', newStatus);
+      const updated = await api.toggleOpenStatus(newStatus);
+      console.log('Updated pharmacy:', updated);
+      setPharmacyInfo(updated);
+      localStorage.setItem('pharmacy', JSON.stringify(updated));
+      setSuccessMessage(`Pharmacy is now ${newStatus ? 'OPEN' : 'CLOSED'}`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err: any) {
+      console.error('Toggle error:', err);
+      // Revert on error
+      setPharmacyInfo({ ...pharmacyInfo, is_open: currentStatus });
+      setError(err.message || 'Failed to update status');
+    }
   };
 
   const handleAddStock = async () => {
@@ -182,7 +277,7 @@ export function PharmacyDashboard() {
     }
     try {
       setLoading(true);
-      await api.addStock(selectedMedicine, qty, expiryDate);
+      await api.addStock(selectedMedicine as any, qty, expiryDate);
 
       await fetchInventory();
       await fetchTransactions();
@@ -216,7 +311,7 @@ export function PharmacyDashboard() {
     }
     try {
       setLoading(true);
-      await api.reduceStock(reduceMedicine, qty);
+      await api.reduceStock(reduceMedicine as any, qty);
 
       await fetchInventory();
       await fetchTransactions();
@@ -333,6 +428,8 @@ export function PharmacyDashboard() {
                   type="text"
                   placeholder="Search medicines, transactions, reports..."
                   className="pl-12 w-96 bg-white border-2 border-slate-200 rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-300 shadow-sm"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium text-slate-400 bg-slate-100 rounded border border-slate-200">⌘K</kbd>
               </div>
@@ -403,7 +500,7 @@ export function PharmacyDashboard() {
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-semibold text-slate-900">{user.full_name || pharmacyInfo?.pharmacy_name || 'Pharmacy'}</p>
+                  <h1 className="text-lg font-bold text-slate-900">{pharmacyInfo?.pharmacy_name || 'Pharmacy'}</h1>
                   <p className="text-xs text-slate-500">{user.email}</p>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-semibold">
@@ -418,6 +515,11 @@ export function PharmacyDashboard() {
           {/* Dashboard Overview */}
           {activeTab === "dashboard" && (
             <div className="space-y-6">
+              {/* Pharmacy Name Header */}
+              <h1 className="text-3xl font-bold text-slate-900">
+                {pharmacyInfo?.pharmacy_name || "Pharmacy"}
+              </h1>
+
               {/* Stats Grid */}
               <div className="grid grid-cols-3 gap-6">
                 <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-6 shadow-lg shadow-purple-200/50 hover:shadow-xl hover:shadow-purple-300/50 transition-all duration-300">
@@ -426,7 +528,7 @@ export function PharmacyDashboard() {
                       <Package className="w-6 h-6 text-purple-800" />
                     </div>
                   </div>
-                  <p className="text-3xl font-bold text-purple-900">{medicines.length}</p>
+                  <p className="text-3xl font-bold text-purple-900">{filteredMedicines.length}</p>
                   <p className="text-sm text-purple-700">Total Items</p>
                 </div>
                 <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6 shadow-lg shadow-blue-200/50 hover:shadow-xl hover:shadow-blue-300/50 transition-all duration-300">
@@ -435,7 +537,7 @@ export function PharmacyDashboard() {
                       <AlertTriangle className="w-6 h-6 text-blue-800" />
                     </div>
                   </div>
-                  <p className="text-3xl font-bold text-blue-900">{medicines.filter(m => m.quantity < 10).length}</p>
+                  <p className="text-3xl font-bold text-blue-900">{filteredMedicines.filter(m => m.quantity < 10).length}</p>
                   <p className="text-sm text-blue-700">Low Stock</p>
                 </div>
                 <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-2xl p-6 shadow-lg shadow-emerald-200/50 hover:shadow-xl hover:shadow-emerald-300/50 transition-all duration-300">
@@ -444,7 +546,7 @@ export function PharmacyDashboard() {
                       <ShoppingCart className="w-6 h-6 text-emerald-800" />
                     </div>
                   </div>
-                  <p className="text-3xl font-bold text-emerald-900">{transactions.length}</p>
+                  <p className="text-3xl font-bold text-emerald-900">{filteredTransactions.length}</p>
                   <p className="text-sm text-emerald-700">Total Transactions</p>
                 </div>
               </div>
@@ -455,18 +557,32 @@ export function PharmacyDashboard() {
                   <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
                     <div className="flex items-center justify-between">
                       <h2 className="font-bold text-slate-900 text-lg">Recent Transactions</h2>
-                      <span className="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                      <div className="flex items-center gap-3">
+                        {/* Open/Closed Toggle */}
+                        <button
+                          type="button"
+                          className={`px-4 py-2 rounded-lg gap-2 flex items-center text-sm font-medium transition-colors ${pharmacyInfo?.is_open !== false ? 'bg-green-600 hover:bg-green-700 text-white' : 'border-2 border-red-300 text-red-600 hover:bg-red-50'}`}
+                          onClick={handleToggleOpenStatus}
+                        >
+                          {pharmacyInfo?.is_open !== false ? (
+                            <><CheckCircle className="w-4 h-4" /> Open</>
+                          ) : (
+                            <><X className="w-4 h-4" /> Closed</>
+                          )}
+                        </button>
+                        <span className="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-1 rounded-full">
+                          <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                          </span>
+                          Live
                         </span>
-                        Live
-                      </span>
+                      </div>
                     </div>
                   </div>
                   <div className="p-6">
                     <div className="space-y-3">
-                      {transactions.slice(0, 5).map((tx) => (
+                      {filteredTransactions.slice(0, 5).map((tx) => (
                         <div key={tx.transaction_id} className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-white border border-slate-100 rounded-xl hover:shadow-md hover:border-slate-200 transition-all duration-300">
                           <div className="flex items-center gap-4">
                             <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-sm bg-gradient-to-br from-primary to-primary/80">
@@ -1211,32 +1327,103 @@ export function PharmacyDashboard() {
               {/* Pharmacy Info Card */}
               {pharmacyInfo && (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-lg p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
-                      <Pill className="w-8 h-8 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-xl font-bold text-slate-900">{pharmacyInfo.pharmacy_name}</h2>
-                        <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">Active</span>
-                      </div>
-                      <p className="text-sm text-slate-500 mt-1">{pharmacyInfo.address}</p>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
-                        <span className="flex items-center gap-1">
-                          <Mail className="w-4 h-4" />
-                          {pharmacyInfo.email}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-4 h-4" />
-                          {pharmacyInfo.phone}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-slate-500">Logged in as</p>
-                      <p className="font-semibold text-slate-900">{user.email}</p>
-                    </div>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="font-bold text-slate-900 text-lg">Pharmacy Information</h2>
+                    {!isEditingPharmacy && (
+                      <Button variant="outline" className="gap-2" onClick={handleEditPharmacy}>
+                        <Edit className="w-4 h-4" />
+                        Edit
+                      </Button>
+                    )}
                   </div>
+
+                  {isEditingPharmacy ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Pharmacy Name</Label>
+                          <Input value={editPharmacyData.pharmacy_name} onChange={(e) => setEditPharmacyData({...editPharmacyData, pharmacy_name: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Contact Phone</Label>
+                          <Input value={editPharmacyData.contact_phone} onChange={(e) => setEditPharmacyData({...editPharmacyData, contact_phone: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Contact Email</Label>
+                          <Input type="email" value={editPharmacyData.contact_email} onChange={(e) => setEditPharmacyData({...editPharmacyData, contact_email: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Operating Hours</Label>
+                          <Input value={editPharmacyData.operating_hours} onChange={(e) => setEditPharmacyData({...editPharmacyData, operating_hours: e.target.value})} placeholder="e.g., Mon-Fri 9AM-6PM" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Address</Label>
+                        <Input value={editPharmacyData.address} onChange={(e) => setEditPharmacyData({...editPharmacyData, address: e.target.value})} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Latitude</Label>
+                          <Input type="number" step="any" value={editPharmacyData.latitude} onChange={(e) => setEditPharmacyData({...editPharmacyData, latitude: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Longitude</Label>
+                          <Input type="number" step="any" value={editPharmacyData.longitude} onChange={(e) => setEditPharmacyData({...editPharmacyData, longitude: e.target.value})} />
+                        </div>
+                      </div>
+                      {error && (
+                        <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+                          <p className="text-red-700 text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{error}</p>
+                        </div>
+                      )}
+                      {successMessage && (
+                        <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
+                          <p className="text-green-700 text-sm flex items-center gap-2"><CheckCircle className="w-4 h-4" />{successMessage}</p>
+                        </div>
+                      )}
+                      <div className="flex gap-3">
+                        <Button onClick={handleSavePharmacy} disabled={loading}>{loading ? 'Saving...' : 'Save Changes'}</Button>
+                        <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
+                        <Pill className="w-8 h-8 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-xl font-bold text-slate-900">{pharmacyInfo.pharmacy_name}</h2>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${pharmacyInfo.is_open !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {pharmacyInfo.is_open !== false ? 'Open' : 'Closed'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-500 mt-1">{pharmacyInfo.address}</p>
+                        <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
+                          <span className="flex items-center gap-1"><Mail className="w-4 h-4" />{pharmacyInfo.contact_email}</span>
+                          <span className="flex items-center gap-1"><Phone className="w-4 h-4" />{pharmacyInfo.contact_phone}</span>
+                        </div>
+                        {pharmacyInfo.operating_hours && (
+                          <p className="text-sm text-slate-600 mt-1"><Clock className="w-4 h-4 inline mr-1" />{pharmacyInfo.operating_hours}</p>
+                        )}
+                      </div>
+                      <div className="text-right space-y-2">
+                        <p className="text-sm text-slate-500">Logged in as</p>
+                        <p className="font-semibold text-slate-900">{user.email}</p>
+                        <button
+                          type="button"
+                          className={`px-4 py-2 rounded-lg gap-2 flex items-center text-sm font-medium transition-colors ${pharmacyInfo.is_open !== false ? 'bg-green-600 hover:bg-green-700 text-white' : 'border-2 border-red-300 text-red-600 hover:bg-red-50'}`}
+                          onClick={handleToggleOpenStatus}
+                        >
+                          {pharmacyInfo.is_open !== false ? (
+                            <><CheckCircle className="w-4 h-4" /> Open</>
+                          ) : (
+                            <><X className="w-4 h-4" /> Closed</>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

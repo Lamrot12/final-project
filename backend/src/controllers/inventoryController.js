@@ -52,13 +52,15 @@ const inventoryController = {
         console.log('Insert result:', result.rows);
       }
 
-      // Record transaction
-      console.log('Recording transaction');
+      // Record transaction in bincard
+      console.log('Recording transaction in bincard');
+      const currentQuantity = parseInt(result.rows[0].quantity);
+      const quantityInt = parseInt(quantity);
       const transResult = await client.query(`
-        INSERT INTO transactions (pharmacy_id, medicine_id, transaction_type, quantity, expiry_date, notes)
-        VALUES ($1, $2, 'stock_in', $3, $4, 'Stock added via pharmacy dashboard')
+        INSERT INTO bincard (pharmacy_id, medicine_id, transaction_type, quantity_changed, balance_after, expiry_date, reference_note)
+        VALUES ($1, $2, 'stock_in', $3, $4, $5, 'Stock added via pharmacy dashboard')
         RETURNING *
-      `, [pharmacy_id, medicine_id, quantity, expiry_date]);
+      `, [pharmacy_id, medicine_id, quantityInt, currentQuantity, expiry_date]);
       console.log('Transaction recorded:', transResult.rows);
 
       await client.query('COMMIT');
@@ -111,11 +113,11 @@ const inventoryController = {
       `, [newQuantity, pharmacy_id, medicine_id]);
       console.log('Update result:', updateResult.rowCount, 'rows affected');
 
-      // Record transaction
+      // Record transaction in bincard
       await pool.query(`
-        INSERT INTO transactions (pharmacy_id, medicine_id, transaction_type, quantity, notes)
-        VALUES ($1, $2, 'stock_out', $3, 'Stock reduced via pharmacy dashboard')
-      `, [pharmacy_id, medicine_id, quantity]);
+        INSERT INTO bincard (pharmacy_id, medicine_id, transaction_type, quantity_changed, balance_after, reference_note)
+        VALUES ($1, $2, 'stock_out', $3, $4, 'Stock reduced via pharmacy dashboard')
+      `, [pharmacy_id, medicine_id, parseInt(quantity), newQuantity]);
 
       res.json({ message: 'Stock reduced successfully', newQuantity });
     } catch (error) {
@@ -157,17 +159,26 @@ const inventoryController = {
     try {
       // Use pharmacyId from authenticated user
       const pharmacyId = req.user.pharmacyId || req.params.pharmacyId;
-      
+
       if (!pharmacyId) {
         return res.status(403).json({ error: 'Pharmacy ID required' });
       }
 
       const result = await pool.query(`
-        SELECT t.*, m.brand_name, m.generic_name
-        FROM transactions t
-        JOIN medicines m ON t.medicine_id = m.medicine_id
-        WHERE t.pharmacy_id = $1
-        ORDER BY t.created_at DESC
+        SELECT 
+          b.bin_card_id as transaction_id,
+          b.transaction_type,
+          b.quantity_changed as quantity,
+          b.balance_after,
+          b.expiry_date,
+          b.reference_note as notes,
+          b.transaction_date as created_at,
+          m.brand_name,
+          m.generic_name
+        FROM bincard b
+        JOIN medicines m ON b.medicine_id = m.medicine_id
+        WHERE b.pharmacy_id = $1
+        ORDER BY b.transaction_date DESC
         LIMIT 50
       `, [pharmacyId]);
 

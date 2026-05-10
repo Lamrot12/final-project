@@ -83,12 +83,12 @@ class Pharmacy {
 
   static async updateImageUrl(pharmacyId, imageUrl, client = null) {
     const query = `
-      UPDATE pharmacies 
-      SET image_url = $1 
-      WHERE pharmacy_id = $2 
+      UPDATE pharmacies
+      SET image_url = $1
+      WHERE pharmacy_id = $2
       RETURNING *
     `;
-    
+
     if (client) {
       const result = await client.query(query, [imageUrl, pharmacyId]);
       return result.rows[0];
@@ -96,6 +96,48 @@ class Pharmacy {
       const result = await pool.query(query, [imageUrl, pharmacyId]);
       return result.rows[0];
     }
+  }
+
+  static async updatePharmacy(pharmacyId, pharmacyData) {
+    const {
+      pharmacy_name,
+      address,
+      contact_phone,
+      contact_email,
+      operating_hours,
+      latitude,
+      longitude,
+      is_open
+    } = pharmacyData;
+
+    const query = `
+      UPDATE pharmacies
+      SET pharmacy_name = COALESCE($1, pharmacy_name),
+          address = COALESCE($2, address),
+          contact_phone = COALESCE($3, contact_phone),
+          contact_email = COALESCE($4, contact_email),
+          operating_hours = COALESCE($5, operating_hours),
+          latitude = COALESCE($6, latitude),
+          longitude = COALESCE($7, longitude),
+          is_open = COALESCE($8, is_open)
+      WHERE pharmacy_id = $9
+      RETURNING *
+    `;
+
+    const values = [pharmacy_name, address, contact_phone, contact_email, operating_hours, latitude, longitude, is_open, pharmacyId];
+    const result = await pool.query(query, values);
+    return result.rows[0];
+  }
+
+  static async toggleOpenStatus(pharmacyId, isOpen) {
+    const query = `
+      UPDATE pharmacies
+      SET is_open = $1
+      WHERE pharmacy_id = $2
+      RETURNING *
+    `;
+    const result = await pool.query(query, [isOpen, pharmacyId]);
+    return result.rows[0];
   }
 }
 

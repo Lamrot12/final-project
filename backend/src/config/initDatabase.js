@@ -72,6 +72,7 @@ async function initializeDatabase() {
         longitude DOUBLE PRECISION,
         operating_hours VARCHAR(100),
         is_verified BOOLEAN DEFAULT FALSE,
+        is_open BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         verified_at TIMESTAMP,
         user_id UUID,
@@ -219,6 +220,17 @@ async function initializeDatabase() {
 
     await client.query('COMMIT');
     console.log('Database tables created successfully');
+
+    // Migration: Add is_open column to pharmacies table if it doesn't exist
+    try {
+      await client.query(`
+        ALTER TABLE pharmacies 
+        ADD COLUMN IF NOT EXISTS is_open BOOLEAN DEFAULT TRUE
+      `);
+      console.log('Migration: is_open column added to pharmacies table');
+    } catch (migrationError) {
+      console.log('Migration: is_open column may already exist or other error:', migrationError.message);
+    }
 
     // Insert sample data
     await insertSampleData();

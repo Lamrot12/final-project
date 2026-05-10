@@ -47,12 +47,12 @@ export function Header() {
             >
               How it Works
             </a>
-              <a
-              href="#for-patients"
+              <Link
+              to="/patient"
               className="text-black hover:text-primary transition-colors font-bold"
             >
               For Patients
-            </a>
+            </Link>
             <a
               href="#for-pharmacies"
               className="text-primary  hover:text-primary transition-colors font-bold"
@@ -107,13 +107,13 @@ export function Header() {
             >
               How it Works
             </a>
-            <a
-              href="#for-pharmacies"
+            <Link
+              to="/patient"
               className="block text-foreground py-2"
               onClick={() => setIsOpen(false)}
             >
-              For Pharmacies
-            </a>
+              For Patients
+            </Link>
             <div className="pt-4 space-y-3">
               <Button variant="outline" className="w-full" asChild>
                 <Link to="/login">Sign In</Link>

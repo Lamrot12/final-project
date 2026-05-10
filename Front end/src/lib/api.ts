@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 // Helper to get auth headers
 const getAuthHeaders = (): Record<string, string> => {
@@ -67,6 +67,26 @@ export const api = {
   async getPharmacyByEmail(email: string) {
     const response = await fetch(`${API_BASE_URL}/pharmacies/email/${encodeURIComponent(email)}`);
     if (!response.ok) throw new Error('Failed to get pharmacy');
+    return response.json();
+  },
+
+  async updatePharmacy(pharmacyData: any) {
+    const response = await fetch(`${API_BASE_URL}/pharmacies/update`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(pharmacyData),
+    });
+    if (!response.ok) throw new Error('Failed to update pharmacy');
+    return response.json();
+  },
+
+  async toggleOpenStatus(isOpen: boolean) {
+    const response = await fetch(`${API_BASE_URL}/pharmacies/toggle-open`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ is_open: isOpen }),
+    });
+    if (!response.ok) throw new Error('Failed to toggle open status');
     return response.json();
   },
 
