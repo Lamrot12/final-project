@@ -13,6 +13,9 @@ const advertisementPlanRoutes = require('./routes/advertisementPlan.routes')
 const advertisementRoutes = require('./routes/advertisement.routes')
 const userRoutes = require('./routes/user.routes')
 const subscriptionPlanRoutes = require('./routes/subscriptionPlan.routes');
+const subscriptionRoutes = require("./routes/subscription.routes");
+const { runSubscriptionCleanup } = require("./cron/subscriptionCleanup");
+const { runAdvertisementCleanup } = require("./cron/advertisementCleanup");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -22,6 +25,7 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -41,6 +45,7 @@ app.use("/api/advertisement-plans", advertisementPlanRoutes);
 app.use("/api/advertisements", advertisementRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/subscription-plans", subscriptionPlanRoutes);
+app.use("/api/subscriptions", subscriptionRoutes);
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'PharmaLink API is running' });
@@ -56,6 +61,11 @@ app.use((err, req, res, next) => {
 initializeDatabase()
   .then(() => {
     console.log('Database initialized successfully');
+    runSubscriptionCleanup();
+     setInterval(runSubscriptionCleanup, 60 * 60 * 1000);
+     runAdvertisementCleanup();
+
+setInterval(runAdvertisementCleanup, 60 * 60 * 1000);
     app.listen(PORT, () => {
       console.log(`PharmaLink API server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);

@@ -1,12 +1,17 @@
-const { AdvertisementPlanModel } = require("../models/advertisementPlan.model.js");
+const AdvertisementPlanModel = require("../models/advertisementPlan.model");
 
 const create = async (req, res) => {
   try {
     const plan = await AdvertisementPlanModel.create(req.body);
     res.status(201).json(plan);
   } catch (error) {
-    res.status(500).json({ message: "Error creating plan", error });
-  }
+  console.error("CREATE PLAN ERROR:", error); 
+
+  res.status(500).json({
+    message: "Error creating plan",
+    error: error.message, // 👈 important
+  });
+}
 };
 
 const getAll = async (req, res) => {
