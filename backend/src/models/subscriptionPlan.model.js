@@ -4,10 +4,10 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-const AdvertisementPlanModel = {
+const SubscriptionPlanModel = {
   async create(data) {
     const result = await pool.query(
-      `INSERT INTO advertisement_plan (plan_name, description, duration_days, price)
+      `INSERT INTO subscription_plan (plan_name, description, duration_days, price)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
       [data.plan_name, data.description, data.duration_days, data.price]
@@ -18,14 +18,14 @@ const AdvertisementPlanModel = {
 
   async findAll() {
     const result = await pool.query(
-      "SELECT * FROM advertisement_plan ORDER BY created_at DESC"
+      "SELECT * FROM subscription_plan ORDER BY created_at DESC"
     );
     return result.rows;
   },
 
   async findById(id) {
     const result = await pool.query(
-      "SELECT * FROM advertisement_plan WHERE plan_id = $1",
+      "SELECT * FROM subscription_plan WHERE plan_id = $1",
       [id]
     );
     return result.rows[0];
@@ -33,7 +33,7 @@ const AdvertisementPlanModel = {
 
   async update(id, data) {
     const result = await pool.query(
-      `UPDATE advertisement_plan
+      `UPDATE subscription_plan
        SET plan_name = $1,
            description = $2,
            duration_days = $3,
@@ -48,11 +48,12 @@ const AdvertisementPlanModel = {
 
   async delete(id) {
     const result = await pool.query(
-      "DELETE FROM advertisement_plan WHERE plan_id = $1 RETURNING *",
+      "DELETE FROM subscription_plan WHERE plan_id = $1 RETURNING *",
       [id]
     );
+
     return result.rows[0];
   },
 };
 
-module.exports = AdvertisementPlanModel;
+module.exports = { SubscriptionPlanModel };
