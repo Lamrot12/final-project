@@ -139,6 +139,28 @@ class Pharmacy {
     const result = await pool.query(query, [isOpen, pharmacyId]);
     return result.rows[0];
   }
+
+  static async approvePharmacy(pharmacyId) {
+    const query = `
+      UPDATE pharmacies
+      SET is_verified = true
+      WHERE pharmacy_id = $1
+      RETURNING *
+    `;
+    const result = await pool.query(query, [pharmacyId]);
+    return result.rows[0];
+  }
+
+  static async rejectPharmacy(pharmacyId) {
+    const query = `
+      UPDATE pharmacies
+      SET is_verified = false
+      WHERE pharmacy_id = $1
+      RETURNING *
+    `;
+    const result = await pool.query(query, [pharmacyId]);
+    return result.rows[0];
+  }
 }
 
 module.exports = Pharmacy;

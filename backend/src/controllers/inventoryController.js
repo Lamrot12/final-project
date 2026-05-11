@@ -36,7 +36,7 @@ const inventoryController = {
         console.log('Updating stock to:', newQuantity);
         result = await client.query(`
           UPDATE pharmacy_stocks
-          SET quantity = $1, expiry_date = COALESCE($2, expiry_date), updated_at = CURRENT_TIMESTAMP
+          SET quantity = $1, expiry_date = COALESCE($2, expiry_date), last_updated = CURRENT_TIMESTAMP
           WHERE pharmacy_id = $3 AND medicine_id = $4
           RETURNING *
         `, [newQuantity, expiry_date, pharmacy_id, medicine_id]);
@@ -108,7 +108,7 @@ const inventoryController = {
 
       const updateResult = await pool.query(`
         UPDATE pharmacy_stocks
-        SET quantity = $1, updated_at = CURRENT_TIMESTAMP
+        SET quantity = $1, last_updated = CURRENT_TIMESTAMP
         WHERE pharmacy_id = $2 AND medicine_id = $3
       `, [newQuantity, pharmacy_id, medicine_id]);
       console.log('Update result:', updateResult.rowCount, 'rows affected');
@@ -121,8 +121,10 @@ const inventoryController = {
 
       res.json({ message: 'Stock reduced successfully', newQuantity });
     } catch (error) {
-      console.error('Error reducing stock:', error);
-      res.status(500).json({ error: 'Failed to reduce stock' });
+      console.error('=== Error reducing stock ===');
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      res.status(500).json({ error: 'Failed to reduce stock', details: error.message });
     }
   },
 

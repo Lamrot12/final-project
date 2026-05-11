@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pill, Package, History, Settings, LogOut, Plus, Search, Edit, Trash2, AlertTriangle, CheckCircle, TrendingUp, Users, ShoppingCart, Bell, FileText, BarChart3, Home, Calendar, Clock, DollarSign, ArrowUpRight, ArrowDownRight, Minus, X, Check, Mail, Phone } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 
 export function PharmacyDashboard() {
@@ -429,7 +429,7 @@ export function PharmacyDashboard() {
                   placeholder="Search medicines, transactions, reports..."
                   className="pl-12 w-96 bg-white border-2 border-slate-200 rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-300 shadow-sm"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
                 />
                 <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium text-slate-400 bg-slate-100 rounded border border-slate-200">⌘K</kbd>
               </div>
@@ -679,7 +679,7 @@ export function PharmacyDashboard() {
                       <Label className="text-sm font-medium text-slate-700">Select Medicine</Label>
                       <select
                         value={showReduceModal ? reduceMedicine : selectedMedicine}
-                        onChange={(e) => {
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                           if (showReduceModal) {
                             setReduceMedicine(e.target.value);
                           } else {
@@ -708,7 +708,7 @@ export function PharmacyDashboard() {
                       <Input
                         type="number"
                         value={showReduceModal ? reduceQuantity : quantity}
-                        onChange={(e) => {
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           if (showReduceModal) {
                             setReduceQuantity(e.target.value);
                           } else {
@@ -726,7 +726,7 @@ export function PharmacyDashboard() {
                           type="date"
                           min={new Date().toISOString().split('T')[0]}
                           value={expiryDate}
-                          onChange={(e) => setExpiryDate(e.target.value)}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpiryDate(e.target.value)}
                           className="px-4 py-3 border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                         />
                       </div>
@@ -821,14 +821,14 @@ export function PharmacyDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {medicines.length === 0 ? (
+                    {filteredMedicines.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="p-8 text-center text-slate-500">
-                          {loading ? 'Loading inventory...' : error ? `Error: ${error}` : 'No inventory items found. Add stock to see items here.'}
+                          {loading ? 'Loading inventory...' : error ? `Error: ${error}` : searchQuery ? 'No medicines match your search.' : 'No inventory items found. Add stock to see items here.'}
                         </td>
                       </tr>
                     ) : (
-                      medicines.map((med) => (
+                      filteredMedicines.map((med) => (
                         <tr key={med.medicine_id} className="border-b border-slate-100 hover:bg-gradient-to-r hover:from-blue-50 hover:to-transparent transition-all duration-300">
                           <td className="p-5">
                             <div className="flex items-center gap-4">
@@ -923,7 +923,7 @@ export function PharmacyDashboard() {
                       <Label className="text-sm font-medium text-slate-700">Select Medicine</Label>
                       <select
                         value={showReduceModal ? reduceMedicine : selectedMedicine}
-                        onChange={(e) => {
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                           if (showReduceModal) {
                             setReduceMedicine(e.target.value);
                           } else {
@@ -952,7 +952,7 @@ export function PharmacyDashboard() {
                       <Input
                         type="number"
                         value={showReduceModal ? reduceQuantity : quantity}
-                        onChange={(e) => {
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           if (showReduceModal) {
                             setReduceQuantity(e.target.value);
                           } else {
@@ -970,7 +970,7 @@ export function PharmacyDashboard() {
                           type="date"
                           min={new Date().toISOString().split('T')[0]}
                           value={expiryDate}
-                          onChange={(e) => setExpiryDate(e.target.value)}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpiryDate(e.target.value)}
                           className="px-4 py-3 border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                         />
                       </div>
@@ -1033,14 +1033,14 @@ export function PharmacyDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {medicines.length === 0 ? (
+                      {filteredMedicines.length === 0 ? (
                         <tr>
                           <td colSpan={4} className="p-8 text-center text-slate-500">
-                            No inventory yet. Add stock to get started.
+                            {searchQuery ? 'No medicines match your search.' : 'No inventory yet. Add stock to get started.'}
                           </td>
                         </tr>
                       ) : (
-                        medicines.map((med) => (
+                        filteredMedicines.map((med) => (
                           <tr key={med.medicine_id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                             <td className="p-4 font-medium text-slate-900">{med.brand_name || med.generic_name}</td>
                             <td className="p-4 text-slate-900">{med.quantity}</td>
@@ -1342,33 +1342,33 @@ export function PharmacyDashboard() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Pharmacy Name</Label>
-                          <Input value={editPharmacyData.pharmacy_name} onChange={(e) => setEditPharmacyData({...editPharmacyData, pharmacy_name: e.target.value})} />
+                          <Input value={editPharmacyData.pharmacy_name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditPharmacyData({...editPharmacyData, pharmacy_name: e.target.value})} />
                         </div>
                         <div className="space-y-2">
                           <Label>Contact Phone</Label>
-                          <Input value={editPharmacyData.contact_phone} onChange={(e) => setEditPharmacyData({...editPharmacyData, contact_phone: e.target.value})} />
+                          <Input value={editPharmacyData.contact_phone} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditPharmacyData({...editPharmacyData, contact_phone: e.target.value})} />
                         </div>
                         <div className="space-y-2">
                           <Label>Contact Email</Label>
-                          <Input type="email" value={editPharmacyData.contact_email} onChange={(e) => setEditPharmacyData({...editPharmacyData, contact_email: e.target.value})} />
+                          <Input type="email" value={editPharmacyData.contact_email} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditPharmacyData({...editPharmacyData, contact_email: e.target.value})} />
                         </div>
                         <div className="space-y-2">
                           <Label>Operating Hours</Label>
-                          <Input value={editPharmacyData.operating_hours} onChange={(e) => setEditPharmacyData({...editPharmacyData, operating_hours: e.target.value})} placeholder="e.g., Mon-Fri 9AM-6PM" />
+                          <Input value={editPharmacyData.operating_hours} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditPharmacyData({...editPharmacyData, operating_hours: e.target.value})} placeholder="e.g., Mon-Fri 9AM-6PM" />
                         </div>
                       </div>
                       <div className="space-y-2">
                         <Label>Address</Label>
-                        <Input value={editPharmacyData.address} onChange={(e) => setEditPharmacyData({...editPharmacyData, address: e.target.value})} />
+                        <Input value={editPharmacyData.address} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditPharmacyData({...editPharmacyData, address: e.target.value})} />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Latitude</Label>
-                          <Input type="number" step="any" value={editPharmacyData.latitude} onChange={(e) => setEditPharmacyData({...editPharmacyData, latitude: e.target.value})} />
+                          <Input type="number" step="any" value={editPharmacyData.latitude} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditPharmacyData({...editPharmacyData, latitude: e.target.value})} />
                         </div>
                         <div className="space-y-2">
                           <Label>Longitude</Label>
-                          <Input type="number" step="any" value={editPharmacyData.longitude} onChange={(e) => setEditPharmacyData({...editPharmacyData, longitude: e.target.value})} />
+                          <Input type="number" step="any" value={editPharmacyData.longitude} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditPharmacyData({...editPharmacyData, longitude: e.target.value})} />
                         </div>
                       </div>
                       {error && (
@@ -1487,7 +1487,7 @@ export function PharmacyDashboard() {
                         <Label className="text-sm font-medium text-slate-700">Select Medicine</Label>
                         <select
                           value={showReduceModal ? reduceMedicine : selectedMedicine}
-                          onChange={(e) => {
+                          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                             if (showReduceModal) {
                               setReduceMedicine(e.target.value);
                             } else {
@@ -1516,7 +1516,7 @@ export function PharmacyDashboard() {
                         <Input
                           type="number"
                           value={showReduceModal ? reduceQuantity : quantity}
-                          onChange={(e) => {
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                             if (showReduceModal) {
                               setReduceQuantity(e.target.value);
                             } else {
@@ -1534,7 +1534,7 @@ export function PharmacyDashboard() {
                             type="date"
                             min={new Date().toISOString().split('T')[0]}
                             value={expiryDate}
-                            onChange={(e) => setExpiryDate(e.target.value)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpiryDate(e.target.value)}
                             className="px-4 py-3 border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                           />
                         </div>
