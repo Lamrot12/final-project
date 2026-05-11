@@ -246,6 +246,15 @@ async function initializeDatabase() {
 
 async function insertSampleData() {
   try {
+    // Check if data already exists - only insert on first run
+    const existingMeds = await pool.query('SELECT COUNT(*) FROM medicines');
+    const existingPharmacies = await pool.query('SELECT COUNT(*) FROM pharmacies');
+    
+    if (existingMeds.rows[0].count > 0 && existingPharmacies.rows[0].count > 0) {
+      console.log('Data already exists, skipping sample data insertion');
+      return;
+    }
+    
     // Insert sample medicines
     const medicines = [
       { generic_name: 'Amoxicillin', brand_name: 'Amoxil', strength: '500mg', category: 'Antibiotic', description: 'Antibiotic for bacterial infections', manufacturer: 'GSK', search_count: 15420 },
