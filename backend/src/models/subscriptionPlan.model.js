@@ -1,4 +1,8 @@
-const { pool } = require("../config/database");
+const { Pool } = require("../config/database");
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 const SubscriptionPlanModel = {
   async create(data) {
