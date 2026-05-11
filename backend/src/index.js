@@ -9,6 +9,8 @@ const pharmacyRoutes = require('./routes/pharmacyRoutes');
 const authRoutes = require('./routes/authRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const pharmacyRegistrationRoutes = require('./routes/pharmacyRegistrationRoutes');
+const advertisementPlanRoutes = require('./routes/advertisementPlan.routes')
+const advertisementRoutes = require('./routes/advertisement.routes')
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -34,7 +36,8 @@ app.use('/api/medicines', medicineRoutes);
 app.use('/api/pharmacies', pharmacyRoutes);
 app.use('/api/pharmacy-registration', pharmacyRegistrationRoutes);
 app.use('/api/inventory', inventoryRoutes);
-
+app.use("/api/advertisement-plans", advertisementPlanRoutes);
+app.use("/api/advertisements", advertisementRoutes);
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'PharmaLink API is running' });

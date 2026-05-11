@@ -25,6 +25,7 @@ import { PatientPage } from "@/pages/PatientPage"
 import { TermsPage } from "@/pages/TermsPage"
 import { PrivacyPage } from "@/pages/PrivacyPage"
 import { ContactPage } from "@/pages/ContactPage"
+import AdminDashboard  from "@/pages/AdminDashboard"
 
 function AppLayout() {
   const location = useLocation();
@@ -52,7 +53,7 @@ function AppLayout() {
           <Route path="/register/pharmacy" element={<PharmacyRegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/search" element={<SearchPage />} />
-          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin" element={<AdminDashboard/>} />
           <Route path="/admin/bincard" element={<BinCardPage />} />
           <Route path="/pharmacy/dashboard" element={<PharmacyDashboard />} />
           <Route path="/patient" element={<PatientPage />} />
