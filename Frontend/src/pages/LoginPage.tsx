@@ -44,11 +44,17 @@ export function LoginPage() {
       }
       
       // Redirect based on user type
-      if (response.user.role_name === 'pharmacy') {
-        navigate('/pharmacy/dashboard');
-      } else {
-        navigate('/patient');
-      }
+      const role = response.user.role_name;
+
+             if (role === 'admin') {
+                  navigate('/admin');
+                       } 
+             else if (role === 'pharmacy') {
+                  navigate('/pharmacy/dashboard');
+                                            } 
+            else {
+                  navigate('/patient');
+                 }
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || 'Login failed. Please check your credentials.');
