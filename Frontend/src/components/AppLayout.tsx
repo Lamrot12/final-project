@@ -26,8 +26,6 @@ import { TermsPage } from "@/pages/TermsPage"
 import { PrivacyPage } from "@/pages/PrivacyPage"
 import { ContactPage } from "@/pages/ContactPage"
 import AdminDashboard  from "@/pages/AdminDashboard"
-import { WaitingApprovalPage } from "@/pages/WaitingApprovalPage"
-import { MedicineSearchResultsPage } from "@/pages/MedicineSearchResultsPage"
 
 function AppLayout() {
   const location = useLocation();
@@ -55,8 +53,6 @@ function AppLayout() {
           <Route path="/register/pharmacy" element={<PharmacyRegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/search" element={<SearchPage />} />
-          <Route path="/search/:medicine" element={<MedicineSearchResultsPage />} />
-          <Route path="/waiting-approval" element={<WaitingApprovalPage />} />
           <Route path="/admin" element={<AdminDashboard/>} />
           <Route path="/admin/bincard" element={<BinCardPage />} />
           <Route path="/pharmacy/dashboard" element={<PharmacyDashboard />} />
