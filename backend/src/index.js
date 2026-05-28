@@ -57,10 +57,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!', details: err.message });
 });
 
-// Initialize database then start server
-initializeDatabase()
-  .then(() => {
-    console.log('Database initialized successfully');
+
+
     runSubscriptionCleanup();
      setInterval(runSubscriptionCleanup, 60 * 60 * 1000);
      runAdvertisementCleanup();
@@ -70,10 +68,7 @@ setInterval(runAdvertisementCleanup, 60 * 60 * 1000);
       console.log(`PharmaLink API server running on port ${PORT}`);
       console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     });
-  })
-  .catch((error) => {
-    console.error('Failed to initialize database:', error);
-    process.exit(1);
-  });
+  
+ 
 
 module.exports = app;

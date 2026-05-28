@@ -1,5 +1,5 @@
-const { AdvertisementPlanModel } = require("../models/advertisementPlan.model.js");
-const { AdvertisementModel } = require("../models/advertisement.model.js");
+const  AdvertisementPlanModel  = require("../models/advertisementPlan.model.js");
+const  AdvertisementModel  = require("../models/advertisement.model.js");
 
 const createAd = async (req, res) => {
   try {
@@ -66,6 +66,7 @@ const getAdById = async (req, res) => {
 };
 
 // UPDATE
+// UPDATE
 const updateAd = async (req, res) => {
   try {
     let advertisement_image = req.body.advertisement_image;
@@ -79,11 +80,25 @@ const updateAd = async (req, res) => {
       receipt_image_url = req.files.receipt_image[0].path;
     }
 
-    const updated = await AdvertisementModel.update(req.params.id, {
+    // Prepare update data
+    const updateData = {
       ...req.body,
       advertisement_image,
       receipt_image_url,
-    });
+    };
+
+    // If approving, you might want to recalculate end_date based on plan
+    if (req.body.verification_status === true && req.body.plan_id) {
+      const plan = await AdvertisementPlanModel.findById(req.body.plan_id);
+      if (plan && req.body.start_date) {
+        const startDate = new Date(req.body.start_date);
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + plan.duration_days);
+        updateData.end_date = endDate.toISOString().split("T")[0];
+      }
+    }
+
+    const updated = await AdvertisementModel.update(req.params.id, updateData);
 
     if (!updated) {
       return res.status(404).json({ message: "Ad not found" });
@@ -91,6 +106,7 @@ const updateAd = async (req, res) => {
 
     res.json(updated);
   } catch (error) {
+    console.error("Error updating ad:", error);
     res.status(500).json({ error: error.message });
   }
 };

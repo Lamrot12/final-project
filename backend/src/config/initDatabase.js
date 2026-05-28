@@ -234,6 +234,7 @@ async function initializeDatabase() {
 
     // Insert sample data
     await insertSampleData();
+ 
     
   } catch (error) {
     await client.query('ROLLBACK');
