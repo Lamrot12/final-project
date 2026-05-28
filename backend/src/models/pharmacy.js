@@ -15,7 +15,7 @@ class Pharmacy {
     } = pharmacyData;
     
     const query = `
-      INSERT INTO pharmacy (pharmacy_name, address, contact_phone, contact_email, latitude, longitude, operating_hours, user_id, is_verified)
+      INSERT INTO pharmacies (pharmacy_name, address, contact_phone, contact_email, latitude, longitude, operating_hours, user_id, is_verified)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
@@ -85,7 +85,7 @@ class Pharmacy {
 
   static async updateUserId(pharmacyId, userId, client = null) {
     const query = `
-      UPDATE pharmacy
+      UPDATE pharmacies
       SET user_id = $1
       WHERE pharmacy_id = $2
       RETURNING *
@@ -113,7 +113,7 @@ class Pharmacy {
     } = pharmacyData;
 
     const query = `
-      UPDATE pharmacy
+      UPDATE pharmacies
       SET pharmacy_name = COALESCE($1, pharmacy_name),
           address = COALESCE($2, address),
           contact_phone = COALESCE($3, contact_phone),
@@ -133,7 +133,7 @@ class Pharmacy {
 
   static async toggleOpenStatus(pharmacyId, isOpen) {
     const query = `
-      UPDATE pharmacy
+      UPDATE pharmacies
       SET is_open = $1
       WHERE pharmacy_id = $2
       RETURNING *
@@ -144,7 +144,7 @@ class Pharmacy {
 
   static async approvePharmacy(pharmacyId) {
     const query = `
-      UPDATE pharmacy
+      UPDATE pharmacies
       SET is_verified = true
       WHERE pharmacy_id = $1
       RETURNING *
@@ -155,7 +155,7 @@ class Pharmacy {
 
   static async rejectPharmacy(pharmacyId) {
     const query = `
-      UPDATE pharmacy
+      UPDATE pharmacies
       SET is_verified = false
       WHERE pharmacy_id = $1
       RETURNING *

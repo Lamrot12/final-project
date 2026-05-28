@@ -160,7 +160,7 @@ const pharmacyController = {
             cos(radians(p.longitude) - radians($3)) +
             sin(radians($2)) * sin(radians(p.latitude)))) AS distance,
             CAST(ps.quantity AS INTEGER) as quantity_int
-          FROM pharmacy p
+          FROM pharmacies p
           INNER JOIN pharmacy_stock ps ON p.pharmacy_id = ps.pharmacy_id
           INNER JOIN medicine m ON ps.medicine_id = m.medicine_id
           WHERE p.is_verified = true
@@ -187,7 +187,7 @@ const pharmacyController = {
             ps.quantity,
             ps.expiry_date,
             CAST(ps.quantity AS INTEGER) as quantity_int
-          FROM pharmacy p
+          FROM pharmacies p
           INNER JOIN pharmacy_stock ps ON p.pharmacy_id = ps.pharmacy_id
           INNER JOIN medicine m ON ps.medicine_id = m.medicine_id
           WHERE p.is_verified = true

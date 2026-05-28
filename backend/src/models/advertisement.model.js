@@ -29,7 +29,7 @@ const AdvertisementModel = {
               p.pharmacy_name,
               ap.plan_name
        FROM advertisement a
-       LEFT JOIN pharmacy p ON a.pharmacy_id = p.pharmacy_id
+       LEFT JOIN pharmacies p ON a.pharmacy_id = p.pharmacy_id
        LEFT JOIN advertisement_plan ap ON a.plan_id = ap.plan_id
        ORDER BY a.created_at DESC`
     );
@@ -40,7 +40,7 @@ const AdvertisementModel = {
     const result = await pool.query(
       `SELECT a.*, p.pharmacy_name
        FROM advertisement a
-       JOIN pharmacy p ON a.pharmacy_id = p.pharmacy_id
+       JOIN pharmacies p ON a.pharmacy_id = p.pharmacy_id
        WHERE a.verification_status = true
        AND a.end_date >= CURRENT_DATE
        ORDER BY a.created_at DESC`
@@ -54,7 +54,7 @@ const AdvertisementModel = {
               p.pharmacy_name,
               ap.plan_name
        FROM advertisement a
-       LEFT JOIN pharmacy p ON a.pharmacy_id = p.pharmacy_id
+       LEFT JOIN pharmacies p ON a.pharmacy_id = p.pharmacy_id
        LEFT JOIN advertisement_plan ap ON a.plan_id = ap.plan_id
        WHERE a.ad_id = $1`,
       [id]
