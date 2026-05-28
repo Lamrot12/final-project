@@ -14,20 +14,20 @@ class Medicine {
   }
 
   static async findAll() {
-    const query = 'SELECT * FROM medicine ORDER BY generic_name';
+    const query = 'SELECT * FROM medicines ORDER BY generic_name';
     const result = await pool.query(query);
     return result.rows;
   }
 
   static async findById(id) {
-    const query = 'SELECT * FROM medicine WHERE medicine_id = $1';
+    const query = 'SELECT * FROM medicines WHERE medicine_id = $1';
     const result = await pool.query(query, [id]);
     return result.rows[0];
   }
 
   static async search(searchTerm) {
     const query = `
-      SELECT * FROM medicine 
+      SELECT * FROM medicines
       WHERE generic_name ILIKE $1 
          OR brand_name ILIKE $1 
          OR category ILIKE $1
@@ -45,7 +45,7 @@ class Medicine {
           ELSE 0
         END
       ), 0) as total_sold
-      FROM medicine m
+      FROM medicines m
       LEFT JOIN bincard b ON m.medicine_id = b.medicine_id
       GROUP BY m.medicine_id
       ORDER BY total_sold DESC, m.brand_name ASC

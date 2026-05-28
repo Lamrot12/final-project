@@ -12,7 +12,7 @@ const getAllUsers = async () => {
       u.created_at,
       u.role_id,
       r.role_name
-    FROM "user" u
+    FROM "users" u
     LEFT JOIN user_role r ON u.role_id = r.role_id
     ORDER BY u.created_at DESC
   `;
@@ -33,7 +33,7 @@ const getUserById = async (user_id) => {
       u.created_at,
       u.role_id,
       r.role_name
-    FROM "user" u
+    FROM "users" u
     LEFT JOIN user_role r ON u.role_id = r.role_id
     WHERE u.user_id = $1
   `;
@@ -47,7 +47,7 @@ const updateUser = async (user_id, updateData) => {
   const { full_name, email, phone, is_active, role_id } = updateData;
 
   const query = `
-    UPDATE "user" 
+    UPDATE "users" 
     SET 
       full_name = COALESCE($1, full_name),
       email = COALESCE($2, email),
@@ -82,7 +82,7 @@ const updateUser = async (user_id, updateData) => {
 // Update user status only (activate/deactivate)
 const updateUserStatus = async (user_id, is_active) => {
   const query = `
-    UPDATE "user" 
+    UPDATE "users" 
     SET 
       is_active = $1,
       updated_at = NOW()
@@ -113,7 +113,7 @@ const getAllRoles = async () => {
 // Delete user (soft delete - deactivate)
 const deleteUser = async (user_id) => {
   const query = `
-    UPDATE "user" 
+    UPDATE "users" 
     SET 
       is_active = false,
       deleted_at = NOW()
@@ -128,7 +128,7 @@ const deleteUser = async (user_id) => {
 // Hard delete user (remove completely)
 const hardDeleteUser = async (user_id) => {
   const query = `
-    DELETE FROM "user" 
+    DELETE FROM "users" 
     WHERE user_id = $1 
     RETURNING user_id
   `;

@@ -31,19 +31,19 @@ class Pharmacy {
   }
 
   static async findAll() {
-    const query = 'SELECT * FROM pharmacy ORDER BY pharmacy_name';
+    const query = 'SELECT * FROM pharmacies ORDER BY pharmacy_name';
     const result = await pool.query(query);
     return result.rows;
   }
 
   static async findById(id) {
-    const query = 'SELECT * FROM pharmacy WHERE pharmacy_id = $1';
+    const query = 'SELECT * FROM pharmacies WHERE pharmacy_id = $1';
     const result = await pool.query(query, [id]);
     return result.rows[0];
   }
 
   static async findByUserId(userId) {
-    const query = 'SELECT * FROM pharmacy WHERE user_id = $1';
+    const query = 'SELECT * FROM pharmacies WHERE user_id = $1';
     const result = await pool.query(query, [userId]);
     return result.rows[0];
   }
@@ -55,7 +55,7 @@ class Pharmacy {
                (6371 * acos(cos(radians($1)) * cos(radians(latitude)) *
                cos(radians(longitude) - radians($2)) +
                sin(radians($1)) * sin(radians(latitude)))) AS distance
-        FROM pharmacy
+        FROM pharmacies
         WHERE is_verified = true
       ) AS subquery
       WHERE distance < $3
@@ -66,7 +66,7 @@ class Pharmacy {
   }
 
   static async findByEmail(email) {
-    const query = 'SELECT * FROM pharmacy WHERE contact_email = $1';
+    const query = 'SELECT * FROM pharmacies WHERE contact_email = $1';
     const result = await pool.query(query, [email]);
     return result.rows[0];
   }

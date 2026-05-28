@@ -7,7 +7,7 @@ class User {
     const hashedPassword = await bcrypt.hash(password, 10);
     
     const query = `
-      INSERT INTO "user" (email, password_hash, full_name, phone, role_id)
+      INSERT INTO "users" (email, password_hash, full_name, phone, role_id)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING user_id, email, full_name, phone, role_id, is_active, created_at
     `;
@@ -25,7 +25,7 @@ class User {
   static async findByEmail(email) {
     const query = `
       SELECT u.*, r.role_name 
-      FROM "user" u 
+      FROM "users" u 
       LEFT JOIN user_role r ON u.role_id = r.role_id 
       WHERE u.email = $1
     `;
@@ -36,7 +36,7 @@ class User {
   static async findById(id) {
     const query = `
       SELECT user_id, email, full_name, phone, role_id, is_active, created_at 
-      FROM "user" 
+      FROM "users" 
       WHERE user_id = $1
     `;
     const result = await pool.query(query, [id]);
