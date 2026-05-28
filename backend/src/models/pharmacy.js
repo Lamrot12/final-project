@@ -15,7 +15,7 @@ class Pharmacy {
     } = pharmacyData;
     
     const query = `
-      INSERT INTO pharmacies (pharmacy_name, address, contact_phone, contact_email, latitude, longitude, operating_hours, user_id, is_verified)
+      INSERT INTO pharmacy (pharmacy_name, address, contact_phone, contact_email, latitude, longitude, operating_hours, user_id, is_verified)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
@@ -31,32 +31,34 @@ class Pharmacy {
   }
 
   static async findAll() {
-    const query = 'SELECT * FROM pharmacies ORDER BY pharmacy_name';
+    const query = 'SELECT * FROM pharmacy ORDER BY pharmacy_name';
     const result = await pool.query(query);
     return result.rows;
   }
 
   static async findById(id) {
-    const query = 'SELECT * FROM pharmacies WHERE pharmacy_id = $1';
+    const query = 'SELECT * FROM pharmacy WHERE pharmacy_id = $1';
     const result = await pool.query(query, [id]);
     return result.rows[0];
   }
 
   static async findByUserId(userId) {
-    const query = 'SELECT * FROM pharmacies WHERE user_id = $1';
+    const query = 'SELECT * FROM pharmacy WHERE user_id = $1';
     const result = await pool.query(query, [userId]);
     return result.rows[0];
   }
 
   static async findNearby(lat, lng, radius = 5) {
     const query = `
-      SELECT *, 
-             (6371 * acos(cos(radians($1)) * cos(radians(latitude)) * 
-             cos(radians(longitude) - radians($2)) + 
-             sin(radians($1)) * sin(radians(latitude)))) AS distance
-      FROM pharmacies
-      WHERE is_verified = true
-      HAVING distance < $3
+      SELECT * FROM (
+        SELECT *,
+               (6371 * acos(cos(radians($1)) * cos(radians(latitude)) *
+               cos(radians(longitude) - radians($2)) +
+               sin(radians($1)) * sin(radians(latitude)))) AS distance
+        FROM pharmacy
+        WHERE is_verified = true
+      ) AS subquery
+      WHERE distance < $3
       ORDER BY distance
     `;
     const result = await pool.query(query, [lat, lng, radius]);
@@ -64,7 +66,7 @@ class Pharmacy {
   }
 
   static async findByEmail(email) {
-    const query = 'SELECT * FROM pharmacies WHERE contact_email = $1';
+    const query = 'SELECT * FROM pharmacy WHERE contact_email = $1';
     const result = await pool.query(query, [email]);
     return result.rows[0];
   }
@@ -72,8 +74,8 @@ class Pharmacy {
   static async getInventory(pharmacyId) {
     const query = `
       SELECT m.*, ps.quantity, ps.expiry_date
-      FROM pharmacy_stocks ps
-      JOIN medicines m ON ps.medicine_id = m.medicine_id
+      FROM pharmacy_stock ps
+      JOIN medicine m ON ps.medicine_id = m.medicine_id
       WHERE ps.pharmacy_id = $1
       ORDER BY m.generic_name
     `;
@@ -81,19 +83,19 @@ class Pharmacy {
     return result.rows;
   }
 
-  static async updateImageUrl(pharmacyId, imageUrl, client = null) {
+  static async updateUserId(pharmacyId, userId, client = null) {
     const query = `
-      UPDATE pharmacies
-      SET image_url = $1
+      UPDATE pharmacy
+      SET user_id = $1
       WHERE pharmacy_id = $2
       RETURNING *
     `;
 
     if (client) {
-      const result = await client.query(query, [imageUrl, pharmacyId]);
+      const result = await client.query(query, [userId, pharmacyId]);
       return result.rows[0];
     } else {
-      const result = await pool.query(query, [imageUrl, pharmacyId]);
+      const result = await pool.query(query, [userId, pharmacyId]);
       return result.rows[0];
     }
   }
@@ -111,7 +113,7 @@ class Pharmacy {
     } = pharmacyData;
 
     const query = `
-      UPDATE pharmacies
+      UPDATE pharmacy
       SET pharmacy_name = COALESCE($1, pharmacy_name),
           address = COALESCE($2, address),
           contact_phone = COALESCE($3, contact_phone),
@@ -131,12 +133,34 @@ class Pharmacy {
 
   static async toggleOpenStatus(pharmacyId, isOpen) {
     const query = `
-      UPDATE pharmacies
+      UPDATE pharmacy
       SET is_open = $1
       WHERE pharmacy_id = $2
       RETURNING *
     `;
     const result = await pool.query(query, [isOpen, pharmacyId]);
+    return result.rows[0];
+  }
+
+  static async approvePharmacy(pharmacyId) {
+    const query = `
+      UPDATE pharmacy
+      SET is_verified = true
+      WHERE pharmacy_id = $1
+      RETURNING *
+    `;
+    const result = await pool.query(query, [pharmacyId]);
+    return result.rows[0];
+  }
+
+  static async rejectPharmacy(pharmacyId) {
+    const query = `
+      UPDATE pharmacy
+      SET is_verified = false
+      WHERE pharmacy_id = $1
+      RETURNING *
+    `;
+    const result = await pool.query(query, [pharmacyId]);
     return result.rows[0];
   }
 }

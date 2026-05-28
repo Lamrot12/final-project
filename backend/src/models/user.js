@@ -2,24 +2,30 @@ const { pool } = require('../config/database');
 const bcrypt = require('bcryptjs');
 
 class User {
-  static async create(userData) {
+  static async create(userData, client = null) {
     const { email, password, full_name, phone, role_id } = userData;
     const hashedPassword = await bcrypt.hash(password, 10);
     
     const query = `
-      INSERT INTO users (email, password_hash, full_name, phone, role_id)
+      INSERT INTO "user" (email, password_hash, full_name, phone, role_id)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING user_id, email, full_name, phone, role_id, is_active, created_at
     `;
     const values = [email, hashedPassword, full_name, phone, role_id];
-    const result = await pool.query(query, values);
-    return result.rows[0];
+    
+    if (client) {
+      const result = await client.query(query, values);
+      return result.rows[0];
+    } else {
+      const result = await pool.query(query, values);
+      return result.rows[0];
+    }
   }
 
   static async findByEmail(email) {
     const query = `
       SELECT u.*, r.role_name 
-      FROM users u 
+      FROM "user" u 
       LEFT JOIN user_role r ON u.role_id = r.role_id 
       WHERE u.email = $1
     `;
@@ -30,7 +36,7 @@ class User {
   static async findById(id) {
     const query = `
       SELECT user_id, email, full_name, phone, role_id, is_active, created_at 
-      FROM users 
+      FROM "user" 
       WHERE user_id = $1
     `;
     const result = await pool.query(query, [id]);

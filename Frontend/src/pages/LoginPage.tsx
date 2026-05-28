@@ -44,19 +44,21 @@ export function LoginPage() {
       }
       
       // Redirect based on user type
-      const role = response.user.role_name;
-
-             if (role === 'admin') {
-                  navigate('/admin');
-                       } 
-             else if (role === 'pharmacy') {
-                  navigate('/pharmacy/dashboard');
-                                            } 
-            else {
-                  navigate('/patient');
-                 }
+      if (response.user.role_name === 'admin') {
+        navigate('/admin');
+      } else if (response.user.role_name === 'pharmacy') {
+        navigate('/pharmacy/dashboard');
+      } else {
+        navigate('/patient');
+      }
     } catch (err: any) {
       console.error('Login error:', err);
+      if (err.message?.includes('requiresApproval')) {
+        // Store email for the waiting page
+        localStorage.setItem('pendingEmail', formData.email);
+        navigate('/waiting-approval');
+        return;
+      }
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);

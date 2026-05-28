@@ -8,54 +8,80 @@ const inventoryController = {
     const client = await pool.connect();
     try {
       // Use pharmacyId from authenticated user
-      const pharmacy_id = req.user.pharmacyId;
+      let pharmacy_id = req.user.pharmacyId;
+      const user_id = req.user.userId;
       const { medicine_id, quantity, expiry_date } = req.body;
-      console.log('addStock called with:', { pharmacy_id, medicine_id, quantity, expiry_date });
+      console.log('addStock called with:', { pharmacy_id, user_id, medicine_id, quantity, expiry_date });
 
       if (!pharmacy_id) {
-        return res.status(403).json({ error: 'Only pharmacy staff can manage inventory' });
+        console.log('No pharmacyId found in req.user:', req.user);
+        // Try to find pharmacy by user_id
+        const pharmacyByUser = await client.query('SELECT pharmacy_id FROM pharmacy WHERE user_id = $1', [user_id]);
+        if (pharmacyByUser.rows.length > 0) {
+          console.log('Found pharmacy by user_id:', pharmacyByUser.rows[0].pharmacy_id);
+          pharmacy_id = pharmacyByUser.rows[0].pharmacy_id;
+        } else {
+          return res.status(403).json({ error: 'No pharmacy associated with your account. Please register as a pharmacy.' });
+        }
       }
       if (!medicine_id || !quantity) {
         return res.status(400).json({ error: 'medicine_id and quantity are required' });
       }
+
+      // Check if pharmacy exists
+      const pharmacyCheck = await client.query('SELECT pharmacy_id, user_id FROM pharmacy WHERE pharmacy_id = $1', [pharmacy_id]);
+      if (pharmacyCheck.rows.length === 0) {
+        console.log('Pharmacy not found in database:', pharmacy_id);
+        // Try to find pharmacy by user_id as fallback
+        const pharmacyByUser = await client.query('SELECT pharmacy_id FROM pharmacy WHERE user_id = $1', [user_id]);
+        if (pharmacyByUser.rows.length > 0) {
+          console.log('Found pharmacy by user_id as fallback:', pharmacyByUser.rows[0].pharmacy_id);
+          pharmacy_id = pharmacyByUser.rows[0].pharmacy_id;
+        } else {
+          return res.status(403).json({ error: 'Pharmacy not found in database.' });
+        }
+      }
+      console.log('Pharmacy found:', pharmacyCheck.rows[0]);
 
       await client.query('BEGIN');
       console.log('Transaction started');
 
       // Check if stock record exists
       const existingStock = await client.query(
-        'SELECT * FROM pharmacy_stocks WHERE pharmacy_id = $1 AND medicine_id = $2',
+        'SELECT * FROM pharmacy_stock WHERE pharmacy_id = $1 AND medicine_id = $2',
         [pharmacy_id, medicine_id]
-      );
+      )
       console.log('Existing stock:', existingStock.rows);
 
       let result;
       if (existingStock.rows.length > 0) {
         // Update existing stock
-        const newQuantity = parseInt(existingStock.rows[0].quantity) + parseInt(quantity);
+        const currentQuantity = parseInt(existingStock.rows[0].quantity) || 0;
+        const addedQuantity = parseInt(quantity) || 0;
+        const newQuantity = currentQuantity + addedQuantity;
         console.log('Updating stock to:', newQuantity);
         result = await client.query(`
-          UPDATE pharmacy_stocks
-          SET quantity = $1, expiry_date = COALESCE($2, expiry_date), updated_at = CURRENT_TIMESTAMP
+          UPDATE pharmacy_stock
+          SET quantity = $1, expiry_date = COALESCE($2, expiry_date), last_updated = CURRENT_TIMESTAMP
           WHERE pharmacy_id = $3 AND medicine_id = $4
           RETURNING *
-        `, [newQuantity, expiry_date, pharmacy_id, medicine_id]);
+        `, [newQuantity.toString(), expiry_date, pharmacy_id, medicine_id]);
         console.log('Update result:', result.rows);
       } else {
         // Insert new stock
         console.log('Inserting new stock');
         result = await client.query(`
-          INSERT INTO pharmacy_stocks (pharmacy_id, medicine_id, quantity, expiry_date)
+          INSERT INTO pharmacy_stock (pharmacy_id, medicine_id, quantity, expiry_date)
           VALUES ($1, $2, $3, $4)
           RETURNING *
-        `, [pharmacy_id, medicine_id, quantity, expiry_date]);
+        `, [pharmacy_id, medicine_id, quantity.toString(), expiry_date]);
         console.log('Insert result:', result.rows);
       }
 
       // Record transaction in bincard
       console.log('Recording transaction in bincard');
-      const currentQuantity = parseInt(result.rows[0].quantity);
-      const quantityInt = parseInt(quantity);
+      const currentQuantity = parseInt(result.rows[0].quantity) || 0;
+      const quantityInt = parseInt(quantity) || 0;
       const transResult = await client.query(`
         INSERT INTO bincard (pharmacy_id, medicine_id, transaction_type, quantity_changed, balance_after, expiry_date, reference_note)
         VALUES ($1, $2, 'stock_in', $3, $4, $5, 'Stock added via pharmacy dashboard')
@@ -92,9 +118,9 @@ const inventoryController = {
 
       // Get current stock
       const stockResult = await pool.query(
-        'SELECT quantity FROM pharmacy_stocks WHERE pharmacy_id = $1 AND medicine_id = $2',
+        'SELECT quantity FROM pharmacy_stock WHERE pharmacy_id = $1 AND medicine_id = $2',
         [pharmacy_id, medicine_id]
-      );
+      )
       console.log('Current stock result:', stockResult.rows);
 
       if (stockResult.rows.length === 0) {
@@ -102,27 +128,30 @@ const inventoryController = {
         return res.status(404).json({ error: 'Stock not found' });
       }
 
-      const currentQuantity = parseInt(stockResult.rows[0].quantity);
-      const newQuantity = Math.max(0, currentQuantity - parseInt(quantity));
+      const currentQuantity = parseInt(stockResult.rows[0].quantity) || 0;
+      const reduceQuantity = parseInt(quantity) || 0;
+      const newQuantity = Math.max(0, currentQuantity - reduceQuantity);
       console.log('Current quantity:', currentQuantity, 'New quantity:', newQuantity);
 
       const updateResult = await pool.query(`
-        UPDATE pharmacy_stocks
-        SET quantity = $1, updated_at = CURRENT_TIMESTAMP
+        UPDATE pharmacy_stock
+        SET quantity = $1, last_updated = CURRENT_TIMESTAMP
         WHERE pharmacy_id = $2 AND medicine_id = $3
-      `, [newQuantity, pharmacy_id, medicine_id]);
+      `, [newQuantity.toString(), pharmacy_id, medicine_id]);
       console.log('Update result:', updateResult.rowCount, 'rows affected');
 
       // Record transaction in bincard
       await pool.query(`
         INSERT INTO bincard (pharmacy_id, medicine_id, transaction_type, quantity_changed, balance_after, reference_note)
         VALUES ($1, $2, 'stock_out', $3, $4, 'Stock reduced via pharmacy dashboard')
-      `, [pharmacy_id, medicine_id, parseInt(quantity), newQuantity]);
+      `, [pharmacy_id, medicine_id, reduceQuantity, newQuantity]);
 
       res.json({ message: 'Stock reduced successfully', newQuantity });
     } catch (error) {
-      console.error('Error reducing stock:', error);
-      res.status(500).json({ error: 'Failed to reduce stock' });
+      console.error('=== Error reducing stock ===');
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      res.status(500).json({ error: 'Failed to reduce stock', details: error.message });
     }
   },
 
@@ -139,8 +168,8 @@ const inventoryController = {
 
       const result = await pool.query(`
         SELECT m.*, ps.stock_id, ps.quantity, ps.expiry_date
-        FROM pharmacy_stocks ps
-        JOIN medicines m ON ps.medicine_id = m.medicine_id
+        FROM pharmacy_stock ps
+        JOIN medicine m ON ps.medicine_id = m.medicine_id
         WHERE ps.pharmacy_id = $1
         ORDER BY m.generic_name
       `, [pharmacyId]);
@@ -176,7 +205,7 @@ const inventoryController = {
           m.brand_name,
           m.generic_name
         FROM bincard b
-        JOIN medicines m ON b.medicine_id = m.medicine_id
+        JOIN medicine m ON b.medicine_id = m.medicine_id
         WHERE b.pharmacy_id = $1
         ORDER BY b.transaction_date DESC
         LIMIT 50

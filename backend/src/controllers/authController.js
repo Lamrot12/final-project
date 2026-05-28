@@ -74,10 +74,17 @@ const authController = {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
       
-      // If user is pharmacy staff, fetch pharmacy data
+      // If user is pharmacy staff, fetch pharmacy data and check verification
       let pharmacy = null;
       if (user.role_name === 'pharmacy') {
         pharmacy = await Pharmacy.findByUserId(user.user_id);
+        if (pharmacy && !pharmacy.is_verified) {
+          return res.status(403).json({ 
+            error: 'Account pending approval',
+            message: 'Your pharmacy account is waiting for admin approval',
+            requiresApproval: true
+          });
+        }
       }
       
       const token = jwt.sign(

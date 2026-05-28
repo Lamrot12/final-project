@@ -51,14 +51,14 @@ const pharmacyRegistrationController = {
         return res.status(500).json({ error: 'Pharmacy role not found' });
       }
 
-      // Create user
+      // Create user first
       const user = await User.create({
         email: staffEmail,
         password: staffPassword,
         full_name: fullName,
         phone: staffPhone,
         role_id: pharmacyRoleId
-      });
+      }, client);
 
       // Create pharmacy (not verified yet)
       const pharmacy = await Pharmacy.create({
@@ -73,26 +73,15 @@ const pharmacyRegistrationController = {
         is_verified: false
       }, client);
 
-      // Upload storefront image to Cloudinary if provided and credentials are configured
-      let storefrontImageUrl = null;
-      if (storefrontImage && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET && process.env.CLOUDINARY_CLOUD_NAME !== 'your_cloudinary_cloud_name') {
-        try {
-          storefrontImageUrl = await uploadToCloudinary(storefrontImage.path, 'pharmalink/pharmacies');
-          // Update pharmacy with image URL
-          await Pharmacy.updateImageUrl(pharmacy.pharmacy_id, storefrontImageUrl, client);
-        } catch (uploadError) {
-          console.error('Error uploading storefront image:', uploadError);
-          // Continue without image - don't fail the registration
-        }
-      }
-
       // Upload license document to Cloudinary if provided and credentials are configured
       let licenseDocumentUrl = null;
+      let licenseDocumentError = null;
       if (licenseDocument && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET && process.env.CLOUDINARY_CLOUD_NAME !== 'your_cloudinary_cloud_name') {
         try {
           licenseDocumentUrl = await uploadToCloudinary(licenseDocument.path, 'pharmalink/licenses');
         } catch (uploadError) {
           console.error('Error uploading license document:', uploadError);
+          licenseDocumentError = uploadError.message;
           // Continue without document - don't fail the registration
         }
       }
@@ -109,8 +98,14 @@ const pharmacyRegistrationController = {
 
       await client.query('COMMIT');
 
+      const warnings = [];
+      if (licenseDocumentError) {
+        warnings.push(`License document upload failed: ${licenseDocumentError}`);
+      }
+
       res.status(201).json({
         message: 'Pharmacy registered successfully. Your application is pending verification.',
+        warnings: warnings.length > 0 ? warnings : undefined,
         data: {
           user: {
             user_id: user.user_id,
@@ -120,8 +115,7 @@ const pharmacyRegistrationController = {
           pharmacy: {
             pharmacy_id: pharmacy.pharmacy_id,
             pharmacy_name: pharmacy.pharmacy_name,
-            is_verified: pharmacy.is_verified,
-            image_url: storefrontImageUrl
+            is_verified: pharmacy.is_verified
           },
           license: {
             license_id: license.license_id,

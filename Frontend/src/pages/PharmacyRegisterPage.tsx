@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pill, Building2, Mail, Lock, Phone, MapPin, FileText, ArrowLeft, CheckCircle, AlertCircle, User, AlertTriangle, Upload, X, Info } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 export function PharmacyRegisterPage() {
   const navigate = useNavigate();
@@ -21,22 +24,150 @@ export function PharmacyRegisterPage() {
     operatingHours: '',
     licenseNumber: '',
     licenseIssueDate: '',
-    licenseExpiryDate: ''
+    licenseExpiryDate: '',
+    latitude: '',
+    longitude: ''
   });
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([9.1450, 38.7400]); // Default to Addis Ababa, Ethiopia
+  const [showMap, setShowMap] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [storefrontImage, setStorefrontImage] = useState<File | null>(null);
   const [licenseDocument, setLicenseDocument] = useState<File | null>(null);
+
+  const [geocodeTimeout, setGeocodeTimeout] = useState<NodeJS.Timeout | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
+    
+    // Geocode address when user types in address field with debouncing
+    if (e.target.id === 'address' && e.target.value.length > 3) {
+      if (geocodeTimeout) {
+        clearTimeout(geocodeTimeout);
+      }
+      const timeout = setTimeout(() => {
+        handleAddressGeocode(e.target.value);
+      }, 500); // 500ms debounce
+      setGeocodeTimeout(timeout);
+    }
   };
 
-  const handleStorefrontImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    setStorefrontImage(file);
+  const handleAddressGeocode = async (address: string) => {
+    try {
+      console.log('Geocoding address:', address);
+      // Add Ethiopia and Addis Ababa context for better results
+      const searchQuery = address.includes('Ethiopia') ? address : `${address}, Addis Ababa, Ethiopia`;
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=ET`);
+      const data = await response.json();
+      console.log('Geocoding result:', data);
+      if (data && data.length > 0) {
+        const { lat, lon, display_name } = data[0];
+        const latitude = parseFloat(lat);
+        const longitude = parseFloat(lon);
+        console.log('Setting location to:', latitude, longitude);
+        setSelectedLocation({ lat: latitude, lng: longitude });
+        setMapCenter([latitude, longitude]);
+        setFormData(prev => ({ 
+          ...prev, 
+          latitude: latitude.toString(), 
+          longitude: longitude.toString(),
+          address: display_name || address
+        }));
+        setShowMap(true);
+      } else {
+        console.log('No results found for:', address);
+      }
+    } catch (error) {
+      console.error('Error geocoding address:', error);
+    }
   };
+
+  const handleGetCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          console.log('Location obtained:', { latitude, longitude });
+          setSelectedLocation({ lat: latitude, lng: longitude });
+          setMapCenter([latitude, longitude]);
+          setFormData({ ...formData, latitude: latitude.toString(), longitude: longitude.toString() });
+          
+          // Reverse geocode to get address
+          try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+            const data = await response.json();
+            if (data.display_name) {
+              setFormData(prev => ({ ...prev, address: data.display_name }));
+            }
+          } catch (error) {
+            console.error('Error reverse geocoding:', error);
+          }
+          
+          setShowMap(true);
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          let errorMessage = 'Unable to get your location';
+          if (error.code === 1) {
+            errorMessage = 'Location permission denied. Please enable location services.';
+          } else if (error.code === 2) {
+            errorMessage = 'Location unavailable. Please check your device settings.';
+          } else if (error.code === 3) {
+            errorMessage = 'Location request timed out.';
+          }
+          setError(errorMessage + ' Please select it from the map.');
+          setShowMap(true);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    } else {
+      setError('Geolocation is not supported by your browser.');
+      setShowMap(true);
+    }
+  };
+
+  const MapClickHandler = () => {
+    useMapEvents({
+      async click(e: L.LeafletMouseEvent) {
+        const { lat, lng } = e.latlng;
+        console.log('Map clicked at:', lat, lng);
+        setSelectedLocation({ lat, lng });
+        setFormData(prev => ({ 
+          ...prev, 
+          latitude: lat.toString(), 
+          longitude: lng.toString() 
+        }));
+        
+        // Reverse geocode to get address
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+          const data = await response.json();
+          console.log('Reverse geocoding result:', data);
+          if (data.display_name) {
+            setFormData(prev => ({ ...prev, address: data.display_name }));
+          }
+        } catch (error) {
+          console.error('Error reverse geocoding:', error);
+        }
+      }
+    });
+    return null;
+  };
+
+  // Fix for default marker icon
+  useEffect(() => {
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+      iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    });
+  }, []);
 
   const handleLicenseDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
@@ -58,13 +189,13 @@ export function PharmacyRegisterPage() {
       return;
     }
 
-    if (!storefrontImage) {
-      setError('Please upload a storefront image');
+    if (!licenseDocument) {
+      setError('Please upload a license document');
       return;
     }
 
-    if (!licenseDocument) {
-      setError('Please upload a license document');
+    if (!formData.latitude || !formData.longitude) {
+      setError('Please select your pharmacy location from the map');
       return;
     }
 
@@ -84,9 +215,8 @@ export function PharmacyRegisterPage() {
       formDataToSend.append('licenseNumber', formData.licenseNumber);
       formDataToSend.append('licenseIssueDate', formData.licenseIssueDate);
       formDataToSend.append('licenseExpiryDate', formData.licenseExpiryDate);
-      if (storefrontImage) {
-        formDataToSend.append('storefrontImage', storefrontImage);
-      }
+      formDataToSend.append('latitude', formData.latitude);
+      formDataToSend.append('longitude', formData.longitude);
       if (licenseDocument) {
         formDataToSend.append('licenseDocument', licenseDocument);
       }
@@ -280,41 +410,53 @@ export function PharmacyRegisterPage() {
                 {/* Pharmacy Address */}
                 <div className="space-y-2">
                   <Label htmlFor="address" className="text-xs font-semibold text-slate-700">Address *</Label>
-                  <Input
-                    id="address"
-                    type="text"
-                    placeholder="Enter full address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3.5 py-2 text-sm border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                  />
-                </div>
-
-                {/* Pharmacy Image Upload Area */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-slate-700">Pharmacy storefront Image *</Label>
-                  <div className="group relative border-2 border-dashed border-slate-300 hover:border-primary transition-colors bg-white rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer text-center">
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="absolute inset-0 opacity-0 cursor-pointer" 
-                      onChange={handleStorefrontImageChange}
+                  <div className="flex gap-2">
+                    <Input
+                      id="address"
+                      type="text"
+                      placeholder="Enter full address (map will zoom to location)"
+                      value={formData.address}
+                      onChange={handleChange}
+                      onFocus={() => setShowMap(true)}
+                      required
+                      className="flex-1 px-3.5 py-2 text-sm border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
                     />
-                    <Upload className="w-8 h-8 text-slate-400 group-hover:text-primary transition-colors mb-2" />
-                    <p className="text-xs font-medium text-slate-700">{storefrontImage ? storefrontImage.name : 'Click to upload or drag & drop storefront photo'}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Accepts JPG, PNG up to 5MB</p>
+                    <Button
+                      type="button"
+                      onClick={handleGetCurrentLocation}
+                      className="px-3 py-2 bg-primary hover:bg-primary/90 text-white text-xs font-medium rounded-lg transition-all flex items-center gap-2"
+                    >
+                      <MapPin className="w-4 h-4" />
+                      Detect Location
+                    </Button>
                   </div>
+                  <p className="text-[10px] text-slate-400">Type address to zoom map, click "Detect Location" to auto-detect, or click map to select location</p>
                 </div>
 
-                {/* Location (Auto-detected) */}
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold text-slate-700">Location (Auto-detected) *</Label>
-                  <Button type="button" variant="outline" className="w-full flex items-center justify-center space-x-2 py-2 px-4 bg-white hover:bg-slate-50 text-slate-700 font-medium text-sm rounded-lg transition-colors">
-                    <MapPin className="w-4 h-4 text-slate-500" />
-                    <span>Allow Location Access</span>
-                  </Button>
-                </div>
+                {/* Location Map - Directly below address */}
+                {showMap && (
+                  <div className="space-y-2">
+                    <div className="h-64 rounded-lg overflow-hidden border border-slate-200">
+                      <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
+                        <TileLayer
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        />
+                        <MapClickHandler />
+                        {selectedLocation && (
+                          <Marker position={[selectedLocation.lat, selectedLocation.lng]} />
+                        )}
+                      </MapContainer>
+                    </div>
+                    {selectedLocation && (
+                      <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg">
+                        <p><strong>Selected Location:</strong></p>
+                        <p>Latitude: {selectedLocation.lat.toFixed(6)}</p>
+                        <p>Longitude: {selectedLocation.lng.toFixed(6)}</p>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-slate-500">Click on the map to select your pharmacy location</p>
+                  </div>
+                )}
 
                 {/* Contact info grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

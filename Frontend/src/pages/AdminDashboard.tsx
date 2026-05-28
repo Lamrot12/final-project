@@ -3794,37 +3794,50 @@ const [licenseSearchTerm, setLicenseSearchTerm] = useState('');
     setShowApproveConfirm(true);
   };
 
-  const confirmApprove = async () => {
-    if (!selectedPharmacyForAction) return;
+// Execute approve when confirmed
+const confirmApprove = async () => {
+  if (!selectedPharmacyForAction) return;
+  
+  setIsProcessing(true);
+  try {
+    const token = localStorage.getItem('token');
+    console.log('📤 Approving pharmacy:', selectedPharmacyForAction.pharmacy_id);
     
-    setIsProcessing(true);
-    try {
-      const response = await axios.put(
-        `http://localhost:5000/api/pharmacies/${selectedPharmacyForAction.pharmacy_id}/verify`,
-        { is_verified: true },
-        { 
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          } 
-        }
-      );
-      
-      if (response.data.success) {
-        toast.success(`${selectedPharmacyForAction.pharmacy_name} approved successfully!`);
-        await fetchPharmacies();
-      } else {
-        toast.error(response.data.message || 'Failed to approve pharmacy');
-      }
-    } catch (error: any) {
-      console.error('Error approving pharmacy:', error);
-      toast.error(error.response?.data?.message || 'Failed to approve pharmacy');
-    } finally {
-      setIsProcessing(false);
-      setShowApproveConfirm(false);
-      setSelectedPharmacyForAction(null);
+    if (!token) {
+      toast.error('No authentication token found. Please login again.');
+      return;
     }
-  };
+    
+    const response = await axios.put(
+      `http://localhost:5000/api/pharmacies/${selectedPharmacyForAction.pharmacy_id}/approve`,
+      {},
+      { 
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        } 
+      }
+    );
+    
+    console.log('✅ Approve response:', response.data);
+    
+    if (response.data.success) {
+      toast.success(`${selectedPharmacyForAction.pharmacy_name} approved successfully!`);
+      // Refresh the pharmacies list
+      await fetchPharmacies();
+    } else {
+      toast.error(response.data.message || 'Failed to approve pharmacy');
+    }
+  } catch (error: any) {
+    console.error('❌ Error approving pharmacy:', error);
+    const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to approve pharmacy';
+    toast.error(errorMessage);
+  } finally {
+    setIsProcessing(false);
+    setShowApproveConfirm(false);
+    setSelectedPharmacyForAction(null);
+  }
+};
 
   const cancelApprove = () => {
     setShowApproveConfirm(false);
@@ -3836,36 +3849,49 @@ const [licenseSearchTerm, setLicenseSearchTerm] = useState('');
     setShowRejectConfirm(true);
   };
 
-  const confirmReject = async () => {
-    if (!selectedPharmacyForAction) return;
+// Execute reject when confirmed
+const confirmReject = async () => {
+  if (!selectedPharmacyForAction) return;
+  
+  setIsProcessing(true);
+  try {
+    const token = localStorage.getItem('token');
+    console.log('📤 Rejecting pharmacy:', selectedPharmacyForAction.pharmacy_id);
     
-    setIsProcessing(true);
-    try {
-      const response = await axios.delete(
-        `http://localhost:5000/api/pharmacies/${selectedPharmacyForAction.pharmacy_id}`,
-        { 
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          } 
-        }
-      );
-      
-      if (response.data.success) {
-        toast.success(`${selectedPharmacyForAction.pharmacy_name} rejected and removed successfully!`);
-        await fetchPharmacies();
-      } else {
-        toast.error(response.data.message || 'Failed to reject pharmacy');
-      }
-    } catch (error: any) {
-      console.error('Error rejecting pharmacy:', error);
-      toast.error(error.response?.data?.message || 'Failed to reject pharmacy');
-    } finally {
-      setIsProcessing(false);
-      setShowRejectConfirm(false);
-      setSelectedPharmacyForAction(null);
+    if (!token) {
+      toast.error('No authentication token found. Please login again.');
+      return;
     }
-  };
+    
+    const response = await axios.delete(
+      `http://localhost:5000/api/pharmacies/${selectedPharmacyForAction.pharmacy_id}`,
+      { 
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        } 
+      }
+    );
+    
+    console.log('✅ Reject response:', response.data);
+    
+    if (response.data.success) {
+      toast.success(`${selectedPharmacyForAction.pharmacy_name} rejected and removed successfully!`);
+      // Refresh the pharmacies list
+      await fetchPharmacies();
+    } else {
+      toast.error(response.data.message || 'Failed to reject pharmacy');
+    }
+  } catch (error: any) {
+    console.error('❌ Error rejecting pharmacy:', error);
+    const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to reject pharmacy';
+    toast.error(errorMessage);
+  } finally {
+    setIsProcessing(false);
+    setShowRejectConfirm(false);
+    setSelectedPharmacyForAction(null);
+  }
+};
 
   const cancelReject = () => {
     setShowRejectConfirm(false);

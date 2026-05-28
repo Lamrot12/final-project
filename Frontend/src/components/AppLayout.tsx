@@ -26,11 +26,11 @@ import { TermsPage } from "@/pages/TermsPage"
 import { PrivacyPage } from "@/pages/PrivacyPage"
 import { ContactPage } from "@/pages/ContactPage"
 import AdminDashboard  from "@/pages/AdminDashboard"
-import { ProtectedRoute } from "@/components/ProtectedRoute/ProtectedRoute"
+
 function AppLayout() {
   const location = useLocation();
-  const hideHeaderFooterRoutes = ['/login', '/register', '/register/pharmacy', '/forgot-password', '/search', '/admin', '/admin/bincard', '/pharmacy/dashboard', '/patient', '/about', '/terms', '/privacy', '/contact'];
-  const showHeaderFooter = !hideHeaderFooterRoutes.includes(location.pathname);
+  const hideHeaderFooterRoutes = ['/login', '/register', '/register/pharmacy', '/forgot-password', '/search', '/admin', '/admin/bincard', '/pharmacy/dashboard', '/patient', '/about', '/terms', '/privacy', '/contact', '/waiting-approval'];
+  const showHeaderFooter = !hideHeaderFooterRoutes.includes(location.pathname) && !location.pathname.startsWith('/search/');
 
   return (
     <div className="min-h-screen bg-background">
@@ -53,7 +53,7 @@ function AppLayout() {
           <Route path="/register/pharmacy" element={<PharmacyRegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/search" element={<SearchPage />} />
-          <Route path="/admin" element={ <ProtectedRoute allowedRoles={["admin"]}><AdminDashboard/></ProtectedRoute>} />
+          <Route path="/admin" element={<AdminDashboard/>} />
           <Route path="/admin/bincard" element={<BinCardPage />} />
           <Route path="/pharmacy/dashboard" element={<PharmacyDashboard />} />
           <Route path="/patient" element={<PatientPage />} />

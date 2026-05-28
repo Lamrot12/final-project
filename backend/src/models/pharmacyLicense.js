@@ -55,6 +55,23 @@ class PharmacyLicense {
       return result.rows[0];
     }
   }
+
+  static async updateLicenseDocument(licenseId, documentUrl, client = null) {
+    const query = `
+      UPDATE pharmacy_license 
+      SET license_document_url = $1
+      WHERE license_id = $2
+      RETURNING *
+    `;
+    
+    if (client) {
+      const result = await client.query(query, [documentUrl, licenseId]);
+      return result.rows[0];
+    } else {
+      const result = await pool.query(query, [documentUrl, licenseId]);
+      return result.rows[0];
+    }
+  }
 }
 
 module.exports = PharmacyLicense;

@@ -70,6 +70,16 @@ export const api = {
     return response.json();
   },
 
+  async searchPharmaciesByMedicine(medicine: string, lat?: number, lng?: number) {
+    let url = `${API_BASE_URL}/pharmacies/search-by-medicine?medicine=${encodeURIComponent(medicine)}`;
+    if (lat && lng) {
+      url += `&lat=${lat}&lng=${lng}`;
+    }
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Failed to search pharmacies');
+    return response.json();
+  },
+
   async updatePharmacy(pharmacyData: any) {
     const response = await fetch(`${API_BASE_URL}/pharmacies/update`, {
       method: 'PUT',
@@ -91,7 +101,7 @@ export const api = {
   },
 
   // Inventory (pharmacyId now comes from auth token, not parameter)
-  async addStock(medicineId: number, quantity: number, expiryDate?: string) {
+  async addStock(medicineId: string, quantity: number, expiryDate?: string) {
     const response = await fetch(`${API_BASE_URL}/inventory/add`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -101,7 +111,7 @@ export const api = {
     return response.json();
   },
 
-  async reduceStock(medicineId: number, quantity: number) {
+  async reduceStock(medicineId: string, quantity: number) {
     const response = await fetch(`${API_BASE_URL}/inventory/reduce`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -144,6 +154,22 @@ export const api = {
       const error = await response.json().catch(() => ({ error: 'Login failed' }));
       throw new Error(error.error || 'Failed to login');
     }
+    return response.json();
+  },
+
+  async getPharmacyLicense(pharmacyId: string) {
+    const response = await fetch(`${API_BASE_URL}/pharmacies/${pharmacyId}/license`);
+    if (!response.ok) throw new Error('Failed to fetch pharmacy license');
+    return response.json();
+  },
+
+  async updatePharmacyLicense(pharmacyId: string, formData: FormData) {
+    const response = await fetch(`${API_BASE_URL}/pharmacies/${pharmacyId}/license`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: formData,
+    });
+    if (!response.ok) throw new Error('Failed to update pharmacy license');
     return response.json();
   },
 };
