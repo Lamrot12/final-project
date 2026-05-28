@@ -1,8 +1,4 @@
-const { Pool } = require("../config/database");
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+const { pool } = require('../config/database');
 
 const AdvertisementModel = {
   async create(data) {
@@ -29,6 +25,18 @@ const AdvertisementModel = {
   async findAll() {
     const result = await pool.query(
       "SELECT * FROM advertisement ORDER BY created_at DESC"
+    );
+    return result.rows;
+  },
+
+  async findActive() {
+    const result = await pool.query(
+      `SELECT a.*, p.pharmacy_name
+       FROM advertisement a
+       JOIN pharmacy p ON a.pharmacy_id = p.pharmacy_id
+       WHERE a.verification_status = true
+       AND a.end_date >= CURRENT_DATE
+       ORDER BY a.created_at DESC`
     );
     return result.rows;
   },

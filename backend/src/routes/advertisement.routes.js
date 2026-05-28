@@ -2,6 +2,7 @@ const express = require("express");
 const {
   createAd,
   getAllAds,
+  getActiveAds,
   getAdById,
   updateAd,
   deleteAd,
@@ -23,6 +24,7 @@ router.post(
 );
 
 router.get("/", getAllAds);
+router.get("/active/public", getActiveAds);
 router.get("/:id", getAdById);
 
 router.put(

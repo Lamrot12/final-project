@@ -1,10 +1,24 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Pill, Package, History, Settings, LogOut, Plus, Search, Edit, Trash2, AlertTriangle, CheckCircle, TrendingUp, Users, ShoppingCart, Bell, FileText, BarChart3, Home, Calendar, Clock, DollarSign, ArrowUpRight, ArrowDownRight, Minus, X, Check, Mail, Phone } from "lucide-react";
+import { Pill, Package, History, Settings, LogOut, Plus, Search, Edit, Trash2, AlertTriangle, CheckCircle, TrendingUp, Users, ShoppingCart, Bell, FileText, BarChart3, Home, Calendar, Clock, DollarSign, ArrowUpRight, ArrowDownRight, Minus, X, Check, Mail, Phone, Menu } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Location selector component for map
+function LocationSelector() {
+  const map = useMapEvents({
+    click(e) {
+      const { lat, lng } = e.latlng;
+      window.dispatchEvent(new CustomEvent('mapClick', { detail: { lat, lng } }));
+    }
+  });
+  return null;
+}
 
 export function PharmacyDashboard() {
   const navigate = useNavigate();
@@ -20,6 +34,7 @@ export function PharmacyDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pharmacyInfo, setPharmacyInfo] = useState<any>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [notifications, setNotifications] = useState<any[]>([]);
 
@@ -38,8 +53,40 @@ export function PharmacyDashboard() {
     latitude: "",
     longitude: ""
   });
+  const [pharmacyLicense, setPharmacyLicense] = useState<any>(null);
+  const [licenseDocument, setLicenseDocument] = useState<File | null>(null);
+  const [isEditingLicense, setIsEditingLicense] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [showMap, setShowMap] = useState(false);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([9.1450, 38.7400]);
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  // Handle map click events
+  useEffect(() => {
+    const handleMapClick = (e: any) => {
+      const { lat, lng } = e.detail;
+      setSelectedLocation({ lat, lng });
+      setEditPharmacyData(prev => ({
+        ...prev,
+        latitude: lat.toString(),
+        longitude: lng.toString()
+      }));
+    };
+
+    window.addEventListener('mapClick', handleMapClick);
+    return () => window.removeEventListener('mapClick', handleMapClick);
+  }, []);
+
+  // Fix for default marker icon
+  useEffect(() => {
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+      iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+    });
+  }, []);
 
   // Filter medicines and transactions based on search query
   const filteredMedicines = medicines.filter(med =>
@@ -135,7 +182,7 @@ export function PharmacyDashboard() {
     if (!medicines.length) return;
     const newNotifications: any[] = [];
     const today = new Date();
-    const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const threeMonthsFromNow = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000);
 
     medicines.forEach((med) => {
       const medicineName = med.brand_name || med.generic_name;
@@ -157,7 +204,7 @@ export function PharmacyDashboard() {
         });
       }
 
-      // Expiry date notifications
+      // Expiry date notifications (within 3 months)
       if (med.expiry_date) {
         const expiryDate = new Date(med.expiry_date);
         const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
@@ -169,7 +216,7 @@ export function PharmacyDashboard() {
             time: "Just now",
             type: "error"
           });
-        } else if (daysUntilExpiry <= 30) {
+        } else if (daysUntilExpiry <= 90) {
           newNotifications.push({
             id: `expiring-${med.medicine_id}`,
             message: `Expiring soon: ${medicineName} expires in ${daysUntilExpiry} days`,
@@ -189,9 +236,46 @@ export function PharmacyDashboard() {
       await fetchAllMedicines();
       await fetchInventory();
       await fetchTransactions();
+      await fetchPharmacyLicense();
     };
     loadAllData();
   }, []);
+
+  const fetchPharmacyLicense = async () => {
+    try {
+      if (pharmacyInfo?.pharmacy_id) {
+        const license = await api.getPharmacyLicense(pharmacyInfo.pharmacy_id);
+        setPharmacyLicense(license);
+      }
+    } catch (err: any) {
+      console.error('Error fetching pharmacy license:', err);
+    }
+  };
+
+  const handleLicenseDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setLicenseDocument(file);
+  };
+
+  const handleUpdateLicense = async () => {
+    try {
+      if (!licenseDocument || !pharmacyInfo?.pharmacy_id) {
+        setError('Please select a license document');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('licenseDocument', licenseDocument);
+
+      await api.updatePharmacyLicense(pharmacyInfo.pharmacy_id, formData);
+      setSuccessMessage('License updated successfully');
+      setLicenseDocument(null);
+      setIsEditingLicense(false);
+      await fetchPharmacyLicense();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update license');
+    }
+  };
 
   useEffect(() => {
     if (medicines.length > 0) {
@@ -217,6 +301,12 @@ export function PharmacyDashboard() {
       latitude: pharmacyInfo?.latitude?.toString() || "",
       longitude: pharmacyInfo?.longitude?.toString() || ""
     });
+    // Set map center to current pharmacy location
+    if (pharmacyInfo?.latitude && pharmacyInfo?.longitude) {
+      setMapCenter([pharmacyInfo.latitude, pharmacyInfo.longitude]);
+      setSelectedLocation({ lat: pharmacyInfo.latitude, lng: pharmacyInfo.longitude });
+    }
+    setShowMap(true);
   };
 
   const handleSavePharmacy = async () => {
@@ -273,6 +363,18 @@ export function PharmacyDashboard() {
     }
     if (!quantity || isNaN(qty) || qty <= 0) {
       setError('Please enter a valid quantity greater than 0');
+      return;
+    }
+    if (!expiryDate) {
+      setError('Please enter an expiry date');
+      return;
+    }
+    // Validate expiry date must be more than 3 months from now
+    const today = new Date();
+    const expiry = new Date(expiryDate);
+    const threeMonthsFromNow = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000);
+    if (expiry <= threeMonthsFromNow) {
+      setError('Expiry date must be more than 3 months from today');
       return;
     }
     try {
@@ -342,27 +444,46 @@ export function PharmacyDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex">
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-lg border border-slate-200"
+      >
+        <Menu className="w-6 h-6" />
+      </button>
+
       {/* Sidebar */}
-      <aside className="w-72 bg-white border-r border-slate-200 flex flex-col shadow-sm">
+      <aside className={`fixed lg:static inset-y-0 left-0 z-40 w-72 bg-white border-r border-slate-200 flex flex-col shadow-sm transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         {/* Logo */}
         <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
-              <Pill className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
+                <Pill className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <span className="font-bold text-slate-900 text-lg">PharmaLink</span>
+                <p className="text-xs text-slate-500">Pharmacy Management</p>
+              </div>
             </div>
-            <div>
-              <span className="font-bold text-slate-900 text-lg">PharmaLink</span>
-              <p className="text-xs text-slate-500">Pharmacy Management</p>
-            </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-2 hover:bg-slate-100 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {sidebarItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                setActiveTab(item.id);
+                setSidebarOpen(false);
+              }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                 activeTab === item.id
                   ? "bg-gradient-to-r from-primary to-primary/90 text-white shadow-lg shadow-primary/25"
@@ -384,54 +505,69 @@ export function PharmacyDashboard() {
 
         {/* Bottom Actions */}
         <div className="p-4 border-t border-slate-200 space-y-1">
-          <button 
-            onClick={() => setActiveTab("settings")}
+          <button
+            onClick={() => {
+              setActiveTab("settings");
+              setSidebarOpen(false);
+            }}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 transition-all duration-200"
           >
             <Settings className="w-5 h-5 text-slate-500" />
             <span className="font-medium">Settings</span>
           </button>
-          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 transition-all duration-200">
+          <button
+            onClick={() => {
+              handleLogout();
+              setSidebarOpen(false);
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 transition-all duration-200"
+          >
             <LogOut className="w-5 h-5" />
             <span className="font-medium">Logout</span>
           </button>
         </div>
       </aside>
 
+      {/* Overlay for mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
         {/* Top Header */}
-        <header className="bg-gradient-to-r from-white via-slate-50 to-white border-b border-slate-200 px-8 py-5 sticky top-0 z-10 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/30">
-                  <Pill className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">{pharmacyInfo?.pharmacy_name || 'Pharmacy'}</h1>
-                  <p className="text-sm text-slate-500 mt-0.5">
-                    {(() => {
-                      const hour = new Date().getHours();
-                      if (hour < 12) return "Good morning! Here's your overview.";
-                      if (hour < 18) return "Good afternoon! Here's your overview.";
-                      return "Good evening! Here's your overview.";
-                    })()}
-                  </p>
-                </div>
+        <header className="bg-gradient-to-r from-white via-slate-50 to-white border-b border-slate-200 px-4 lg:px-8 py-4 lg:py-5 sticky top-0 z-10 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/30 flex-shrink-0">
+                <Pill className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-lg lg:text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent truncate">{pharmacyInfo?.pharmacy_name || 'Pharmacy'}</h1>
+                <p className="text-xs text-slate-500 mt-0.5 hidden sm:block">
+                  {(() => {
+                    const hour = new Date().getHours();
+                    if (hour < 12) return "Good morning! Here's your overview.";
+                    if (hour < 18) return "Good afternoon! Here's your overview.";
+                    return "Good evening! Here's your overview.";
+                  })()}
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="relative group">
+            <div className="flex items-center gap-2 lg:gap-4 flex-shrink-0">
+              <div className="relative group hidden md:block">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-primary transition-colors" />
                 <Input
                   type="text"
                   placeholder="Search medicines, transactions, reports..."
-                  className="pl-12 w-96 bg-white border-2 border-slate-200 rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-300 shadow-sm"
+                  className="pl-12 w-48 lg:w-96 bg-white border-2 border-slate-200 rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-300 shadow-sm"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
-                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium text-slate-400 bg-slate-100 rounded border border-slate-200">⌘K</kbd>
+                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium text-slate-400 bg-slate-100 rounded border border-slate-200 hidden lg:block">⌘K</kbd>
               </div>
               <div className="relative">
                 <Button
@@ -487,8 +623,8 @@ export function PharmacyDashboard() {
                       )}
                     </div>
                     <div className="p-3 border-t border-slate-200">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         className="w-full text-sm"
                         onClick={() => { setActiveTab("notifications"); setShowNotifications(false); }}
                       >
@@ -500,10 +636,10 @@ export function PharmacyDashboard() {
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right hidden sm:block">
-                  <h1 className="text-lg font-bold text-slate-900">{pharmacyInfo?.pharmacy_name || 'Pharmacy'}</h1>
-                  <p className="text-xs text-slate-500">{user.email}</p>
+                  <h1 className="text-sm lg:text-lg font-bold text-slate-900 truncate max-w-[150px]">{pharmacyInfo?.pharmacy_name || 'Pharmacy'}</h1>
+                  <p className="text-xs text-slate-500 truncate max-w-[150px]">{user.email}</p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-semibold">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-semibold flex-shrink-0">
                   {(user.full_name || pharmacyInfo?.pharmacy_name || 'P').substring(0, 2).toUpperCase()}
                 </div>
               </div>
@@ -511,17 +647,17 @@ export function PharmacyDashboard() {
           </div>
         </header>
 
-        <div className="p-8">
+        <div className="p-4 lg:p-8">
           {/* Dashboard Overview */}
           {activeTab === "dashboard" && (
             <div className="space-y-6">
               {/* Pharmacy Name Header */}
-              <h1 className="text-3xl font-bold text-slate-900">
+              <h1 className="text-2xl lg:text-3xl font-bold text-slate-900">
                 {pharmacyInfo?.pharmacy_name || "Pharmacy"}
               </h1>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-6 shadow-lg shadow-purple-200/50 hover:shadow-xl hover:shadow-purple-300/50 transition-all duration-300">
                   <div className="flex items-center justify-between mb-4">
                     <div className="w-12 h-12 rounded-xl bg-white/60 flex items-center justify-center backdrop-blur-sm">
@@ -552,10 +688,10 @@ export function PharmacyDashboard() {
               </div>
 
               {/* Recent Activity & Quick Actions */}
-              <div className="grid grid-cols-3 gap-6">
-                <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-lg">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-lg">
                   <div className="p-6 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <h2 className="font-bold text-slate-900 text-lg">Recent Transactions</h2>
                       <div className="flex items-center gap-3">
                         {/* Open/Closed Toggle */}
@@ -583,7 +719,7 @@ export function PharmacyDashboard() {
                   <div className="p-6">
                     <div className="space-y-3">
                       {filteredTransactions.slice(0, 5).map((tx) => (
-                        <div key={tx.transaction_id} className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-white border border-slate-100 rounded-xl hover:shadow-md hover:border-slate-200 transition-all duration-300">
+                        <div key={tx.transaction_id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-white border border-slate-100 rounded-xl hover:shadow-md hover:border-slate-200 transition-all duration-300 gap-3">
                           <div className="flex items-center gap-4">
                             <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-sm bg-gradient-to-br from-primary to-primary/80">
                               {tx.transaction_type === "sale" ? (
@@ -597,7 +733,7 @@ export function PharmacyDashboard() {
                               <p className="text-sm text-slate-500">{new Date(tx.created_at).toLocaleDateString()} • {tx.notes || 'No notes'}</p>
                             </div>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right sm:text-left">
                             <p className="font-bold text-slate-900">{tx.quantity} units</p>
                             <span className="text-xs font-semibold px-2 py-1 rounded-full bg-primary/10 text-primary">
                               {tx.transaction_type}
@@ -616,24 +752,24 @@ export function PharmacyDashboard() {
                     <h2 className="font-bold text-slate-900 text-lg">Quick Actions</h2>
                   </div>
                   <div className="p-6 space-y-3">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="w-full justify-start gap-3 hover:bg-primary/5 hover:border-primary/30"
                       onClick={() => { setShowAddForm(true); setShowReduceModal(false); setSelectedMedicine(""); setQuantity(""); setExpiryDate(""); setError(""); }}
                     >
                       <Plus className="w-4 h-4" />
                       Add Stock
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="w-full justify-start gap-3 hover:bg-primary/5 hover:border-primary/30"
                       onClick={() => { setShowReduceModal(true); setShowAddForm(false); setReduceMedicine(""); setReduceQuantity(""); }}
                     >
                       <Minus className="w-4 h-4" />
                       Reduce Stock
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="w-full justify-start gap-3 hover:bg-primary/5 hover:border-primary/30"
                       onClick={() => setActiveTab("settings")}
                     >
@@ -1371,6 +1507,33 @@ export function PharmacyDashboard() {
                           <Input type="number" step="any" value={editPharmacyData.longitude} onChange={(e) => setEditPharmacyData({...editPharmacyData, longitude: e.target.value})} />
                         </div>
                       </div>
+                      
+                      {/* Map for location selection */}
+                      <div className="space-y-2">
+                        <Label>Select Location on Map</Label>
+                        {showMap && (
+                          <div className="h-64 rounded-xl overflow-hidden border border-slate-200">
+                            <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
+                              <TileLayer
+                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                              />
+                              {selectedLocation && (
+                                <Marker position={[selectedLocation.lat, selectedLocation.lng]} />
+                              )}
+                              <LocationSelector />
+                            </MapContainer>
+                          </div>
+                        )}
+                        {selectedLocation && (
+                          <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg">
+                            <p><strong>Selected Location:</strong></p>
+                            <p>Latitude: {selectedLocation.lat.toFixed(6)}</p>
+                            <p>Longitude: {selectedLocation.lng.toFixed(6)}</p>
+                          </div>
+                        )}
+                        <p className="text-[10px] text-slate-500">Click on the map to select your pharmacy location</p>
+                      </div>
                       {error && (
                         <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
                           <p className="text-red-700 text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{error}</p>
@@ -1427,156 +1590,85 @@ export function PharmacyDashboard() {
                 </div>
               )}
 
-              {/* Stock Management */}
+              {/* Pharmacy License */}
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                <h2 className="font-semibold text-slate-900 text-lg mb-6">Stock Management</h2>
-                <div className="flex gap-4">
-                  <Button
-                    className="gap-2"
-                    onClick={() => {
-                      setShowReduceModal(true);
-                      setShowAddForm(false);
-                      setReduceMedicine("");
-                      setReduceQuantity("");
-                    }}
-                  >
-                    <Minus className="w-4 h-4" />
-                    Reduce Stock
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => {
-                      setShowAddForm(true);
-                      setShowReduceModal(false);
-                      setSelectedMedicine("");
-                      setQuantity("");
-                      setExpiryDate("");
-                      setError("");
-                    }}
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Stock
-                  </Button>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="font-semibold text-slate-900 text-lg">Pharmacy License</h2>
+                  {!isEditingLicense && pharmacyLicense && (
+                    <Button variant="outline" className="gap-2" onClick={() => setIsEditingLicense(true)}>
+                      <Edit className="w-4 h-4" />
+                      Edit License
+                    </Button>
+                  )}
                 </div>
 
-                {/* Add/Reduce Stock Form */}
-                {(showAddForm || showReduceModal) && (
-                  <div className="mt-6 p-6 bg-slate-50 rounded-xl border border-slate-200">
-                    <h3 className="font-semibold text-slate-900 mb-4">
-                      {showReduceModal ? "Reduce Stock from Inventory" : "Add Stock to Inventory"}
-                    </h3>
+                {!pharmacyLicense ? (
+                  <div className="text-center py-8 text-slate-500">
+                    <FileText className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                    <p>No license information found</p>
+                  </div>
+                ) : isEditingLicense ? (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Upload New License Document</Label>
+                      <input 
+                        type="file" 
+                        accept="image/*,.pdf" 
+                        onChange={handleLicenseDocumentChange}
+                        className="w-full"
+                      />
+                    </div>
                     {error && (
-                      <div className="p-4 bg-red-50 border border-red-200 rounded-xl mb-4">
-                        <p className="text-red-700 text-sm flex items-center gap-2">
-                          <AlertTriangle className="w-4 h-4" />
-                          {error}
-                        </p>
+                      <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+                        <p className="text-red-700 text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{error}</p>
                       </div>
                     )}
                     {successMessage && (
-                      <div className="p-4 bg-green-50 border border-green-200 rounded-xl mb-4">
-                        <p className="text-green-700 text-sm flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          {successMessage}
-                        </p>
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
+                        <p className="text-green-700 text-sm flex items-center gap-2"><CheckCircle className="w-4 h-4" />{successMessage}</p>
                       </div>
                     )}
-                    <div className="grid grid-cols-4 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-slate-700">Select Medicine</Label>
-                        <select
-                          value={showReduceModal ? reduceMedicine : selectedMedicine}
-                          onChange={(e) => {
-                            if (showReduceModal) {
-                              setReduceMedicine(e.target.value);
-                            } else {
-                              setSelectedMedicine(e.target.value);
-                            }
-                          }}
-                          className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                        >
-                          <option value="">Choose medicine...</option>
-                          {showReduceModal 
-                            ? medicines.map((med) => (
-                                <option key={med.medicine_id} value={med.medicine_id}>
-                                  {med.brand_name || med.generic_name} (Current: {med.quantity})
-                                </option>
-                              ))
-                            : allMedicines.map((med) => (
-                                <option key={med.id} value={med.id}>
-                                  {med.name}
-                                </option>
-                              ))
-                          }
-                        </select>
+                    <div className="flex gap-3">
+                      <Button onClick={handleUpdateLicense} disabled={!licenseDocument || loading}>{loading ? 'Uploading...' : 'Update License'}</Button>
+                      <Button variant="outline" onClick={() => {setIsEditingLicense(false); setLicenseDocument(null);}}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-sm text-slate-500">License Number</Label>
+                        <p className="font-medium text-slate-900">{pharmacyLicense.license_number}</p>
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-slate-700">Quantity</Label>
-                        <Input
-                          type="number"
-                          value={showReduceModal ? reduceQuantity : quantity}
-                          onChange={(e) => {
-                            if (showReduceModal) {
-                              setReduceQuantity(e.target.value);
-                            } else {
-                              setQuantity(e.target.value);
-                            }
-                          }}
-                          placeholder="Enter quantity"
-                          className="px-4 py-3 border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                        />
+                      <div>
+                        <Label className="text-sm text-slate-500">Verification Status</Label>
+                        <p className={`font-medium ${pharmacyLicense.verification_status === 'approved' ? 'text-green-600' : pharmacyLicense.verification_status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
+                          {pharmacyLicense.verification_status.charAt(0).toUpperCase() + pharmacyLicense.verification_status.slice(1)}
+                        </p>
                       </div>
-                      {!showReduceModal && (
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-slate-700">Expiry Date</Label>
-                          <Input
-                            type="date"
-                            min={new Date().toISOString().split('T')[0]}
-                            value={expiryDate}
-                            onChange={(e) => setExpiryDate(e.target.value)}
-                            className="px-4 py-3 border-slate-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                          />
-                        </div>
-                      )}
-                      {showReduceModal && (
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium text-slate-700">Reason</Label>
-                          <select className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all">
-                            <option value="">Select reason...</option>
-                            <option value="sale">Sale</option>
-                            <option value="damage">Damage</option>
-                            <option value="expiry">Expired</option>
-                            <option value="loss">Loss</option>
-                            <option value="other">Other</option>
-                          </select>
-                        </div>
-                      )}
-                      <div className="flex items-end">
-                        <Button
-                          className="w-full gap-2 h-11"
-                          onClick={() => {
-                            if (showReduceModal) {
-                              handleReduceStock();
-                            } else {
-                              handleAddStock();
-                            }
-                          }}
-                        >
-                          {showReduceModal ? (
-                            <>
-                              <Minus className="w-4 h-4" />
-                              Reduce Stock
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="w-4 h-4" />
-                              Add Stock
-                            </>
-                          )}
-                        </Button>
+                      <div>
+                        <Label className="text-sm text-slate-500">Issue Date</Label>
+                        <p className="font-medium text-slate-900">{pharmacyLicense.issue_date ? new Date(pharmacyLicense.issue_date).toLocaleDateString() : 'N/A'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm text-slate-500">Expiry Date</Label>
+                        <p className="font-medium text-slate-900">{pharmacyLicense.expiry_date ? new Date(pharmacyLicense.expiry_date).toLocaleDateString() : 'N/A'}</p>
                       </div>
                     </div>
+                    {pharmacyLicense.license_document_url && (
+                      <div>
+                        <Label className="text-sm text-slate-500 mb-2 block">License Document</Label>
+                        <a 
+                          href={pharmacyLicense.license_document_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                        >
+                          <FileText className="w-4 h-4" />
+                          View License Document
+                        </a>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

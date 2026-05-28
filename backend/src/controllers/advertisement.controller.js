@@ -50,6 +50,16 @@ const getAllAds = async (req, res) => {
   }
 };
 
+// GET ACTIVE (for landing page)
+const getActiveAds = async (req, res) => {
+  try {
+    const ads = await AdvertisementModel.findActive();
+    res.json(ads);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // GET BY ID
 const getAdById = async (req, res) => {
   try {
@@ -113,6 +123,7 @@ const deleteAd = async (req, res) => {
 module.exports = {
   createAd,
   getAllAds,
+  getActiveAds,
   getAdById,
   updateAd,
   deleteAd,

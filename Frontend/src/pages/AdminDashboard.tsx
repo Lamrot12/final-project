@@ -623,8 +623,8 @@ const confirmApprove = async () => {
     }
     
     const response = await axios.put(
-      `http://localhost:5000/api/pharmacies/${selectedPharmacyForAction.pharmacy_id}/verify`,
-      { is_verified: true },
+      `http://localhost:5000/api/pharmacies/${selectedPharmacyForAction.pharmacy_id}/approve`,
+      {},
       { 
         headers: { 
           'Authorization': `Bearer ${token}`,

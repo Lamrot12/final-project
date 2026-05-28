@@ -10,6 +10,41 @@ export function MedicineSearchResultsPage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Get user location with better error handling
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          console.log('Location obtained:', { latitude, longitude });
+          setUserLocation({ lat: latitude, lng: longitude });
+          setLocationError(null);
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          let errorMessage = 'Unable to get your location';
+          if (error.code === 1) {
+            errorMessage = 'Location permission denied. Please enable location services for better results.';
+          } else if (error.code === 2) {
+            errorMessage = 'Location unavailable. Please check your device settings.';
+          } else if (error.code === 3) {
+            errorMessage = 'Location request timed out.';
+          }
+          setLocationError(errorMessage);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    } else {
+      setLocationError('Geolocation is not supported by your browser');
+    }
+  }, []);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -17,7 +52,7 @@ export function MedicineSearchResultsPage() {
       
       try {
         setLoading(true);
-        const results = await api.searchPharmaciesByMedicine(medicine);
+        const results = await api.searchPharmaciesByMedicine(medicine, userLocation?.lat, userLocation?.lng);
         setSearchResults(results);
       } catch (err) {
         console.error('Error searching pharmacies:', err);
@@ -28,7 +63,7 @@ export function MedicineSearchResultsPage() {
     };
 
     fetchResults();
-  }, [medicine]);
+  }, [medicine, userLocation]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -55,6 +90,82 @@ export function MedicineSearchResultsPage() {
       </header>
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
+        {/* Location Error Message */}
+        {locationError ? (
+          <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+            <MapPin className="w-5 h-5 text-amber-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-amber-800">{locationError}</p>
+              <p className="text-xs text-amber-600 mt-1">Search results will not be sorted by distance.</p>
+              <button
+                onClick={() => {
+                  setLocationError(null);
+                  if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                      (position) => {
+                        const { latitude, longitude } = position.coords;
+                        console.log('Location obtained:', { latitude, longitude });
+                        setUserLocation({ lat: latitude, lng: longitude });
+                      },
+                      (error) => {
+                        console.error('Error getting location:', error);
+                        setLocationError('Failed to get location. Please check your browser settings.');
+                      },
+                      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    );
+                  }
+                }}
+                className="text-xs text-amber-700 underline mt-2 hover:text-amber-900"
+              >
+                Retry getting location
+              </button>
+            </div>
+            <button
+              onClick={() => setLocationError(null)}
+              className="text-amber-600 hover:text-amber-800"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : !userLocation ? (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+            <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-blue-800">Location not detected</p>
+              <p className="text-xs text-blue-600 mt-1">Enable location for distance-based sorting and directions.</p>
+              <button
+                onClick={() => {
+                  if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                      (position) => {
+                        const { latitude, longitude } = position.coords;
+                        console.log('Location obtained:', { latitude, longitude });
+                        setUserLocation({ lat: latitude, lng: longitude });
+                      },
+                      (error) => {
+                        console.error('Error getting location:', error);
+                        let errorMessage = 'Unable to get your location';
+                        if (error.code === 1) {
+                          errorMessage = 'Location permission denied. Please enable location services.';
+                        } else if (error.code === 2) {
+                          errorMessage = 'Location unavailable. Please check your device settings.';
+                        } else if (error.code === 3) {
+                          errorMessage = 'Location request timed out.';
+                        }
+                        setLocationError(errorMessage);
+                      },
+                      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    );
+                  }
+                }}
+                className="text-xs text-blue-700 underline mt-2 hover:text-blue-900"
+              >
+                Enable location
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {/* Search Bar */}
         <div className="mb-8">
           <div className="relative group">
@@ -108,6 +219,11 @@ export function MedicineSearchResultsPage() {
                           <MapPin className="w-4 h-4" />
                           {result.address}
                         </p>
+                        {result.distance && (
+                          <p className="text-xs text-slate-400 mt-1">
+                            {result.distance.toFixed(1)} km away
+                          </p>
+                        )}
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         {result.is_open ? (
@@ -152,7 +268,24 @@ export function MedicineSearchResultsPage() {
                           Call
                         </Button>
                       )}
-                      <Button className="flex-1 gap-2">
+                      <Button 
+                        className="flex-1 gap-2"
+                        onClick={() => {
+                          let url;
+                          if (result.latitude && result.longitude) {
+                            if (userLocation) {
+                              // Include both origin and destination
+                              url = `https://www.google.com/maps/dir/?api=1&origin=${userLocation.lat},${userLocation.lng}&destination=${result.latitude},${result.longitude}`;
+                            } else {
+                              // Only destination if no user location
+                              url = `https://www.google.com/maps/dir/?api=1&destination=${result.latitude},${result.longitude}`;
+                            }
+                          } else {
+                            url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(result.address)}`;
+                          }
+                          window.open(url, '_blank');
+                        }}
+                      >
                         <Navigation className="w-4 h-4" />
                         Get Directions
                       </Button>
