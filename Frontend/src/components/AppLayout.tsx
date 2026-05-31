@@ -25,11 +25,13 @@ import { PatientPage } from "@/pages/PatientPage"
 import { TermsPage } from "@/pages/TermsPage"
 import { PrivacyPage } from "@/pages/PrivacyPage"
 import { ContactPage } from "@/pages/ContactPage"
+import { OCRResultsPage } from "@/pages/OCRResultsPage"
+import MedicineChatPage from "@/pages/MedicineChatPage"
 import AdminDashboard  from "@/pages/AdminDashboard"
 import { ProtectedRoute } from "@/components/ProtectedRoute/ProtectedRoute"
 function AppLayout() {
   const location = useLocation();
-  const hideHeaderFooterRoutes = ['/login', '/register', '/register/pharmacy', '/forgot-password', '/search', '/admin', '/admin/bincard', '/pharmacy/dashboard', '/patient', '/about', '/terms', '/privacy', '/contact', '/waiting-approval'];
+  const hideHeaderFooterRoutes = ['/login', '/register', '/register/pharmacy', '/forgot-password', '/search', '/admin', '/admin/bincard', '/pharmacy/dashboard', '/patient', '/about', '/terms', '/privacy', '/contact', '/waiting-approval', '/ocr-results', '/medicine-chat'];
   const showHeaderFooter = !hideHeaderFooterRoutes.includes(location.pathname) && !location.pathname.startsWith('/search/');
 
   return (
@@ -53,6 +55,7 @@ function AppLayout() {
           <Route path="/register/pharmacy" element={<PharmacyRegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/search/:query" element={<SearchPage />} />
           <Route path="/admin" 
           element={  <ProtectedRoute allowedRoles={["admin"]}>
                              <AdminDashboard />
@@ -60,6 +63,8 @@ function AppLayout() {
           <Route path="/admin/bincard" element={<BinCardPage />} />
           <Route path="/pharmacy/dashboard" element={<PharmacyDashboard />} />
           <Route path="/patient" element={<PatientPage />} />
+          <Route path="/medicine-chat" element={<MedicineChatPage />} />
+          <Route path="/ocr-results" element={<OCRResultsPage />} />
           <Route path="/medicine/:id" element={<MedicineDetailPage />} />
           <Route path="/pharmacy/:id" element={<PharmacyProfilePage />} />
           <Route path="/help" element={<HelpPage />} />

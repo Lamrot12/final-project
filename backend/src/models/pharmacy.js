@@ -74,8 +74,8 @@ class Pharmacy {
   static async getInventory(pharmacyId) {
     const query = `
       SELECT m.*, ps.quantity, ps.expiry_date
-      FROM pharmacy_stock ps
-      JOIN medicine m ON ps.medicine_id = m.medicine_id
+      FROM pharmacy_stocks ps
+      JOIN medicines m ON ps.medicine_id = m.medicine_id
       WHERE ps.pharmacy_id = $1
       ORDER BY m.generic_name
     `;

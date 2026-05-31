@@ -4,7 +4,7 @@ class Medicine {
   static async create(medicineData) {
     const { generic_name, brand_name, strength, category, description, manufacturer } = medicineData;
     const query = `
-      INSERT INTO medicine (generic_name, brand_name, strength, category, description, manufacturer)
+      INSERT INTO medicines (generic_name, brand_name, strength, category, description, manufacturer)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;

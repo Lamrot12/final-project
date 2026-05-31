@@ -59,6 +59,8 @@ export function PharmacyDashboard() {
   const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number]>([9.1450, 38.7400]);
+  const [medicineSearchQuery, setMedicineSearchQuery] = useState("");
+  const [showMedicineDropdown, setShowMedicineDropdown] = useState(false);
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -167,7 +169,7 @@ export function PharmacyDashboard() {
         const mapped = response.map((item: any) => ({
           id: item.medicine_id,
           name: item.brand_name || item.generic_name
-        }));
+        })).sort((a: any, b: any) => a.name.localeCompare(b.name));
         console.log('Mapped medicines:', mapped);
         setAllMedicines(mapped);
       } else {
@@ -239,6 +241,19 @@ export function PharmacyDashboard() {
       await fetchPharmacyLicense();
     };
     loadAllData();
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.medicine-dropdown-container')) {
+        setShowMedicineDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const fetchPharmacyLicense = async () => {
@@ -755,7 +770,7 @@ export function PharmacyDashboard() {
                     <Button
                       variant="outline"
                       className="w-full justify-start gap-3 hover:bg-primary/5 hover:border-primary/30"
-                      onClick={() => { setShowAddForm(true); setShowReduceModal(false); setSelectedMedicine(""); setQuantity(""); setExpiryDate(""); setError(""); }}
+                      onClick={() => { setShowAddForm(true); setShowReduceModal(false); setSelectedMedicine(""); setQuantity(""); setExpiryDate(""); setError(""); setMedicineSearchQuery(""); }}
                     >
                       <Plus className="w-4 h-4" />
                       Add Stock
@@ -763,7 +778,7 @@ export function PharmacyDashboard() {
                     <Button
                       variant="outline"
                       className="w-full justify-start gap-3 hover:bg-primary/5 hover:border-primary/30"
-                      onClick={() => { setShowReduceModal(true); setShowAddForm(false); setReduceMedicine(""); setReduceQuantity(""); }}
+                      onClick={() => { setShowReduceModal(true); setShowAddForm(false); setReduceMedicine(""); setReduceQuantity(""); setMedicineSearchQuery(""); }}
                     >
                       <Minus className="w-4 h-4" />
                       Reduce Stock
@@ -811,33 +826,80 @@ export function PharmacyDashboard() {
                     </div>
                   )}
                   <div className="grid grid-cols-4 gap-4">
-                    <div className="space-y-2">
+                    <div className="space-y-2 relative medicine-dropdown-container">
                       <Label className="text-sm font-medium text-slate-700">Select Medicine</Label>
-                      <select
-                        value={showReduceModal ? reduceMedicine : selectedMedicine}
-                        onChange={(e) => {
-                          if (showReduceModal) {
-                            setReduceMedicine(e.target.value);
-                          } else {
-                            setSelectedMedicine(e.target.value);
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          placeholder="Type to search medicines..."
+                          value={showReduceModal 
+                            ? (reduceMedicine ? medicines.find(m => m.medicine_id === reduceMedicine)?.brand_name || medicines.find(m => m.medicine_id === reduceMedicine)?.generic_name || '' : medicineSearchQuery)
+                            : (selectedMedicine ? allMedicines.find(m => m.id === selectedMedicine)?.name || '' : medicineSearchQuery)
                           }
-                        }}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                      >
-                        <option value="">Choose medicine...</option>
-                        {showReduceModal 
-                          ? medicines.map((med) => (
-                              <option key={med.medicine_id} value={med.medicine_id}>
-                                {med.brand_name || med.generic_name} (Current: {med.quantity})
-                              </option>
-                            ))
-                          : allMedicines.map((med) => (
-                              <option key={med.id} value={med.id}>
-                                {med.name}
-                              </option>
-                            ))
-                        }
-                      </select>
+                          onChange={(e) => {
+                            setMedicineSearchQuery(e.target.value);
+                            setShowMedicineDropdown(true);
+                          }}
+                          onFocus={() => setShowMedicineDropdown(true)}
+                          className="w-full px-4 py-3 border border-slate-200 rounded-xl bg-white text-slate-900 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        />
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        {showMedicineDropdown && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                            {showReduceModal 
+                              ? medicines
+                                  .filter(med => 
+                                    (med.brand_name?.toLowerCase().includes(medicineSearchQuery.toLowerCase()) || 
+                                     med.generic_name?.toLowerCase().includes(medicineSearchQuery.toLowerCase())) &&
+                                    medicineSearchQuery.length > 0
+                                  )
+                                  .sort((a: any, b: any) => (a.brand_name || a.generic_name).localeCompare(b.brand_name || b.generic_name))
+                                  .map((med) => (
+                                    <div
+                                      key={med.medicine_id}
+                                      onClick={() => {
+                                        setReduceMedicine(med.medicine_id);
+                                        setMedicineSearchQuery(med.brand_name || med.generic_name);
+                                        setShowMedicineDropdown(false);
+                                      }}
+                                      className="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
+                                    >
+                                      <p className="font-medium text-slate-900">{med.brand_name || med.generic_name}</p>
+                                      <p className="text-xs text-slate-500">Current: {med.quantity} units</p>
+                                    </div>
+                                  ))
+                              : allMedicines
+                                  .filter(med => 
+                                    med.name.toLowerCase().includes(medicineSearchQuery.toLowerCase()) &&
+                                    medicineSearchQuery.length > 0
+                                  )
+                                  .map((med) => (
+                                    <div
+                                      key={med.id}
+                                      onClick={() => {
+                                        setSelectedMedicine(med.id);
+                                        setMedicineSearchQuery(med.name);
+                                        setShowMedicineDropdown(false);
+                                      }}
+                                      className="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100 last:border-0"
+                                    >
+                                      <p className="font-medium text-slate-900">{med.name}</p>
+                                    </div>
+                                  ))
+                            }
+                            {((showReduceModal ? medicines : allMedicines).filter((med: any) => 
+                              showReduceModal 
+                                ? (med.brand_name?.toLowerCase().includes(medicineSearchQuery.toLowerCase()) || 
+                                   med.generic_name?.toLowerCase().includes(medicineSearchQuery.toLowerCase()))
+                                : med.name.toLowerCase().includes(medicineSearchQuery.toLowerCase())
+                            )).length === 0 && medicineSearchQuery.length > 0 && (
+                              <div className="px-4 py-3 text-slate-500 text-center">
+                                No medicines found
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-slate-700">Quantity</Label>
@@ -921,7 +983,7 @@ export function PharmacyDashboard() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-sm text-slate-500">{medicines.length} items</span>
-                    <Button size="sm" onClick={() => { setActiveTab("bincard"); setShowAddForm(true); setShowReduceModal(false); setSelectedMedicine(""); setQuantity(""); setExpiryDate(""); setError(""); }}>
+                    <Button size="sm" onClick={() => { setActiveTab("bincard"); setShowAddForm(true); setShowReduceModal(false); setSelectedMedicine(""); setQuantity(""); setExpiryDate(""); setError(""); setMedicineSearchQuery(""); }}>
                       <Plus className="w-4 h-4 mr-1" />
                       Add Stock
                     </Button>

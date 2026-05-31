@@ -16,7 +16,7 @@ const inventoryController = {
       if (!pharmacy_id) {
         console.log('No pharmacyId found in req.user:', req.user);
         // Try to find pharmacy by user_id
-        const pharmacyByUser = await client.query('SELECT pharmacy_id FROM pharmacy WHERE user_id = $1', [user_id]);
+        const pharmacyByUser = await client.query('SELECT pharmacy_id FROM pharmacies WHERE user_id = $1', [user_id]);
         if (pharmacyByUser.rows.length > 0) {
           console.log('Found pharmacy by user_id:', pharmacyByUser.rows[0].pharmacy_id);
           pharmacy_id = pharmacyByUser.rows[0].pharmacy_id;
@@ -29,11 +29,11 @@ const inventoryController = {
       }
 
       // Check if pharmacy exists
-      const pharmacyCheck = await client.query('SELECT pharmacy_id, user_id FROM pharmacy WHERE pharmacy_id = $1', [pharmacy_id]);
+      const pharmacyCheck = await client.query('SELECT pharmacy_id, user_id FROM pharmacies WHERE pharmacy_id = $1', [pharmacy_id]);
       if (pharmacyCheck.rows.length === 0) {
         console.log('Pharmacy not found in database:', pharmacy_id);
         // Try to find pharmacy by user_id as fallback
-        const pharmacyByUser = await client.query('SELECT pharmacy_id FROM pharmacy WHERE user_id = $1', [user_id]);
+        const pharmacyByUser = await client.query('SELECT pharmacy_id FROM pharmacies WHERE user_id = $1', [user_id]);
         if (pharmacyByUser.rows.length > 0) {
           console.log('Found pharmacy by user_id as fallback:', pharmacyByUser.rows[0].pharmacy_id);
           pharmacy_id = pharmacyByUser.rows[0].pharmacy_id;
@@ -48,7 +48,7 @@ const inventoryController = {
 
       // Check if stock record exists
       const existingStock = await client.query(
-        'SELECT * FROM pharmacy_stock WHERE pharmacy_id = $1 AND medicine_id = $2',
+        'SELECT * FROM pharmacy_stocks WHERE pharmacy_id = $1 AND medicine_id = $2',
         [pharmacy_id, medicine_id]
       )
       console.log('Existing stock:', existingStock.rows);
@@ -61,7 +61,7 @@ const inventoryController = {
         const newQuantity = currentQuantity + addedQuantity;
         console.log('Updating stock to:', newQuantity);
         result = await client.query(`
-          UPDATE pharmacy_stock
+          UPDATE pharmacy_stocks
           SET quantity = $1, expiry_date = COALESCE($2, expiry_date), last_updated = CURRENT_TIMESTAMP
           WHERE pharmacy_id = $3 AND medicine_id = $4
           RETURNING *
@@ -71,7 +71,7 @@ const inventoryController = {
         // Insert new stock
         console.log('Inserting new stock');
         result = await client.query(`
-          INSERT INTO pharmacy_stock (pharmacy_id, medicine_id, quantity, expiry_date)
+          INSERT INTO pharmacy_stocks (pharmacy_id, medicine_id, quantity, expiry_date)
           VALUES ($1, $2, $3, $4)
           RETURNING *
         `, [pharmacy_id, medicine_id, quantity.toString(), expiry_date]);
@@ -118,7 +118,7 @@ const inventoryController = {
 
       // Get current stock
       const stockResult = await pool.query(
-        'SELECT quantity FROM pharmacy_stock WHERE pharmacy_id = $1 AND medicine_id = $2',
+        'SELECT quantity FROM pharmacy_stocks WHERE pharmacy_id = $1 AND medicine_id = $2',
         [pharmacy_id, medicine_id]
       )
       console.log('Current stock result:', stockResult.rows);
@@ -134,7 +134,7 @@ const inventoryController = {
       console.log('Current quantity:', currentQuantity, 'New quantity:', newQuantity);
 
       const updateResult = await pool.query(`
-        UPDATE pharmacy_stock
+        UPDATE pharmacy_stocks
         SET quantity = $1, last_updated = CURRENT_TIMESTAMP
         WHERE pharmacy_id = $2 AND medicine_id = $3
       `, [newQuantity.toString(), pharmacy_id, medicine_id]);
@@ -168,8 +168,8 @@ const inventoryController = {
 
       const result = await pool.query(`
         SELECT m.*, ps.stock_id, ps.quantity, ps.expiry_date
-        FROM pharmacy_stock ps
-        JOIN medicine m ON ps.medicine_id = m.medicine_id
+        FROM pharmacy_stocks ps
+        JOIN medicines m ON ps.medicine_id = m.medicine_id
         WHERE ps.pharmacy_id = $1
         ORDER BY m.generic_name
       `, [pharmacyId]);
@@ -205,7 +205,7 @@ const inventoryController = {
           m.brand_name,
           m.generic_name
         FROM bincard b
-        JOIN medicine m ON b.medicine_id = m.medicine_id
+        JOIN medicines m ON b.medicine_id = m.medicine_id
         WHERE b.pharmacy_id = $1
         ORDER BY b.transaction_date DESC
         LIMIT 50

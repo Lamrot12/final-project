@@ -3,7 +3,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 require('dotenv').config();
 
-const { initializeDatabase } = require('./config/initDatabase');
+// Database initialization removed - tables already exist in remote
+// const { initializeDatabase } = require('./config/initDatabase');
 const medicineRoutes = require('./routes/medicineRoutes');
 const pharmacyRoutes = require('./routes/pharmacyRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -14,6 +15,7 @@ const advertisementRoutes = require('./routes/advertisement.routes')
 const userRoutes = require('./routes/user.routes')
 const subscriptionPlanRoutes = require('./routes/subscriptionPlan.routes');
 const subscriptionRoutes = require("./routes/subscription.routes");
+const ocrRoutes = require('./routes/ocrRoutes');
 const { runSubscriptionCleanup } = require("./cron/subscriptionCleanup");
 const { runAdvertisementCleanup } = require("./cron/advertisementCleanup");
 const app = express();
@@ -46,6 +48,7 @@ app.use("/api/advertisements", advertisementRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/subscription-plans", subscriptionPlanRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
+app.use('/api/ocr', ocrRoutes);
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'PharmaLink API is running' });

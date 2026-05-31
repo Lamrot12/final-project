@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Upload, MapPin, Pill, LogOut, ArrowLeft, Star, Clock, Phone, Navigation, CheckCircle, TrendingUp, MessageCircle, X } from "lucide-react";
+import { Search, Upload, MapPin, Pill, LogOut, ArrowLeft, Star, Clock, Phone, Navigation, CheckCircle, TrendingUp, MessageCircle, X, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 
@@ -11,8 +11,10 @@ export function PatientPage() {
   const [showChat, setShowChat] = useState(false);
   const [popularMedicines, setPopularMedicines] = useState<any[]>([]);
   const [nearbyPharmacies, setNearbyPharmacies] = useState<any[]>([]);
+  const [searchPharmacies, setSearchPharmacies] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -20,6 +22,8 @@ export function PatientPage() {
   const [manualLocation, setManualLocation] = useState('');
   const [showLocationInput, setShowLocationInput] = useState(false);
   const [showPhoneNumbers, setShowPhoneNumbers] = useState<Set<string>>(new Set());
+  const [processingPrescription, setProcessingPrescription] = useState(false);
+  const [prescriptionError, setPrescriptionError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -35,6 +39,14 @@ export function PatientPage() {
       fetchData();
     }
   }, [userLocation]);
+
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      searchPharmaciesByMedicine(searchQuery);
+    } else {
+      setSearchPharmacies([]);
+    }
+  }, [searchQuery, userLocation]);
 
   const getUserLocation = () => {
     if (navigator.geolocation) {
@@ -124,8 +136,46 @@ export function PatientPage() {
     }
   };
 
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = async (file: File) => {
     setUploadedFile(file);
+    setProcessingPrescription(true);
+    setPrescriptionError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const response = await fetch('http://localhost:5000/api/ocr/process-prescription', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process prescription');
+      }
+
+      const data = await response.json();
+      
+      // Navigate to OCR results page with the full response data
+      navigate('/ocr-results', { state: { ocrData: data } });
+    } catch (err) {
+      console.error('Error processing prescription:', err);
+      setPrescriptionError('Failed to process prescription. Please try again or search manually.');
+    } finally {
+      setProcessingPrescription(false);
+    }
+  };
+
+  const searchPharmaciesByMedicine = async (medicine: string) => {
+    setSearchLoading(true);
+    try {
+      const results = await api.searchPharmaciesByMedicine(medicine, userLocation?.lat, userLocation?.lng);
+      setSearchPharmacies(results);
+    } catch (err) {
+      console.error('Error searching pharmacies by medicine:', err);
+    } finally {
+      setSearchLoading(false);
+    }
   };
 
   return (
@@ -143,13 +193,12 @@ export function PatientPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <Button
-              onClick={() => setShowChat(!showChat)}
-              className="bg-primary hover:bg-primary/90 text-white gap-2 text-xs sm:text-sm px-2 sm:px-4"
-            >
-              <MessageCircle className="w-4 h-4" />
-              <span className="hidden sm:inline">Medicine Chat</span>
-            </Button>
+            <Link to="/medicine-chat">
+              <Button className="bg-primary hover:bg-primary/90 text-white gap-2 text-xs sm:text-sm px-2 sm:px-4">
+                <MessageCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">Medicine Chat</span>
+              </Button>
+            </Link>
             <Link to="/">
               <Button variant="outline" className="gap-2 text-xs sm:text-sm px-2 sm:px-4">
                 {isLoggedIn ? (
@@ -193,46 +242,103 @@ export function PatientPage() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6 sm:space-y-8">
             <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
-            <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20">
-                  <Upload className="w-5 h-5 text-white" />
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
+            <div className="p-3 sm:p-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shadow-primary/20 flex-shrink-0">
+                  <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">Upload Prescription</h2>
+                <div className="min-w-0">
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 truncate">Upload Prescription</h2>
                   <p className="text-xs text-slate-500">Get quotes from nearby pharmacies</p>
                 </div>
               </div>
             </div>
-            <div className="p-4">
-              <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:border-primary hover:bg-slate-50 transition-all cursor-pointer">
-                {uploadedFile ? (
-                  <div className="space-y-2">
-                    <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-                      <CheckCircle className="w-6 h-6 text-green-600" />
+            <div className="p-3 sm:p-4">
+              <div 
+                className="border-2 border-dashed border-slate-300 rounded-xl p-6 sm:p-8 text-center hover:border-primary hover:bg-slate-50 transition-all cursor-pointer min-h-[200px] sm:min-h-[240px] flex flex-col items-center justify-center"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (e.dataTransfer.files?.[0] && !processingPrescription) {
+                    handleFileUpload(e.dataTransfer.files[0]);
+                  }
+                }}
+              >
+                {processingPrescription ? (
+                  <div className="space-y-3 sm:space-y-4">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-blue-100 flex items-center justify-center mx-auto animate-pulse">
+                      <Upload className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
                     </div>
-                    <p className="font-semibold text-slate-900 text-sm">{uploadedFile.name}</p>
-                    <Button onClick={() => setUploadedFile(null)} variant="outline" size="sm">Remove</Button>
+                    <p className="font-semibold text-slate-900 text-sm sm:text-base">Processing prescription...</p>
+                    <p className="text-xs sm:text-sm text-slate-500">Extracting medicines with AI</p>
+                  </div>
+                ) : uploadedFile ? (
+                  <div className="space-y-3 sm:space-y-4 w-full">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+                      <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-600" />
+                    </div>
+                    <p className="font-semibold text-slate-900 text-sm sm:text-base truncate px-4">{uploadedFile.name}</p>
+                    {prescriptionError && (
+                      <p className="text-xs sm:text-sm text-red-600 px-4">{prescriptionError}</p>
+                    )}
+                    <Button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUploadedFile(null);
+                        setPrescriptionError(null);
+                        setSearchQuery('');
+                      }} 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-xs sm:text-sm px-4 sm:px-6"
+                    >
+                      Remove
+                    </Button>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <Upload className="w-8 h-8 text-slate-400 mx-auto" />
-                    <p className="text-slate-600 text-sm">Drag & drop your prescription here</p>
-                    <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} className="hidden" id="file-upload" />
+                  <div className="space-y-3 sm:space-y-4 w-full px-4">
+                    <Upload className="w-8 h-8 sm:w-12 sm:h-12 text-slate-400 mx-auto" />
+                    <p className="text-slate-600 text-sm sm:text-base">Drag & drop your prescription here</p>
+                    <input 
+                      type="file" 
+                      accept="image/*,.pdf" 
+                      onChange={(e) => {
+                        if (e.target.files?.[0] && !processingPrescription) {
+                          handleFileUpload(e.target.files[0]);
+                        }
+                      }} 
+                      className="hidden" 
+                      id="file-upload" 
+                      disabled={processingPrescription} 
+                    />
                     <label htmlFor="file-upload">
-                      <Button size="sm">Choose File</Button>
+                      <Button 
+                        size="sm" 
+                        disabled={processingPrescription} 
+                        className="text-sm sm:text-base px-6 sm:px-8 py-4 sm:py-5"
+                        asChild
+                      >
+                        <span>Choose File</span>
+                      </Button>
                     </label>
                   </div>
                 )}
               </div>
+              {prescriptionError && !uploadedFile && (
+                <div className="mt-3 p-3 bg-red-50 rounded-lg">
+                  <p className="text-xs sm:text-sm text-red-600">{prescriptionError}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         <div className="mb-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-slate-900">Nearby Pharmacies</h2>
+            <h2 className="text-2xl font-bold text-slate-900">
+              {searchQuery ? `Pharmacies stocking "${searchQuery}"` : 'Nearby Pharmacies'}
+            </h2>
             <div className="flex items-center gap-2">
               <Button
                 onClick={() => {
@@ -277,12 +383,25 @@ export function PatientPage() {
               <p className="text-xs text-slate-500 mt-2">Enter a neighborhood or landmark in Addis Ababa</p>
             </div>
           )}
+          
+          {searchLoading && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <p className="ml-3 text-muted-foreground">Searching pharmacies...</p>
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-            {nearbyPharmacies.map((pharmacy) => (
+            {(searchQuery ? searchPharmacies : nearbyPharmacies).map((pharmacy) => (
               <div key={pharmacy.id} className="bg-white rounded-2xl border border-slate-200 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
                 <div className="h-32 sm:h-40 bg-slate-200 relative overflow-hidden">
                   <img src={pharmacy.image} alt={pharmacy.name} className="w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                  {pharmacy.distance && (
+                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-sm font-medium">
+                      {pharmacy.distance}
+                    </div>
+                  )}
                 </div>
                 <div className="p-4 sm:p-5">
                   <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-2">{pharmacy.name}</h3>
@@ -296,10 +415,12 @@ export function PatientPage() {
                       <span className="font-semibold">{pharmacy.rating}</span>
                       <span className="text-slate-400">({pharmacy.reviews})</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Navigation className="w-3 sm:w-4 h-3 sm:h-4 text-slate-400" />
-                      <span>{pharmacy.distance}</span>
-                    </div>
+                    {searchQuery && pharmacy.has_medicine && (
+                      <span className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded-full">
+                        <CheckCircle className="w-3 h-3" />
+                        In Stock
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mb-4">
                     {pharmacy.isOpen ? (
@@ -358,6 +479,14 @@ export function PatientPage() {
               </div>
             ))}
           </div>
+          
+          {searchQuery && searchPharmacies.length === 0 && !searchLoading && (
+            <div className="text-center py-12">
+              <Pill className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground text-lg">No pharmacies found stocking "{searchQuery}"</p>
+              <p className="text-muted-foreground text-sm mt-2">Try a different search term</p>
+            </div>
+          )}
         </div>
           </div>
 

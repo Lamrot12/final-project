@@ -54,6 +54,31 @@ const getAllAds = async (req, res) => {
 const getActiveAds = async (req, res) => {
   try {
     const ads = await AdvertisementModel.findActive();
+    
+    // If no active ads, return active pharmacies as fallback
+    if (ads.length === 0) {
+      const { pool } = require("../config/database");
+      const pharmaciesResult = await pool.query(
+        `SELECT pharmacy_id, pharmacy_name, address, contact_phone, latitude, longitude
+         FROM pharmacies
+         WHERE is_verified = true
+         ORDER BY created_at DESC
+         LIMIT 3`
+      );
+      
+      // Transform pharmacies to ad format
+      const pharmacyAds = pharmaciesResult.rows.map(pharmacy => ({
+        ad_id: pharmacy.pharmacy_id,
+        ad_title: pharmacy.pharmacy_name,
+        ad_content: pharmacy.address || 'Your trusted local pharmacy',
+        advertisement_image: null,
+        pharmacy_name: pharmacy.pharmacy_name,
+        end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 30 days from now
+      }));
+      
+      return res.json(pharmacyAds);
+    }
+    
     res.json(ads);
   } catch (error) {
     res.status(500).json({ error: error.message });

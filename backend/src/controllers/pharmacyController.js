@@ -161,10 +161,9 @@ const pharmacyController = {
             sin(radians($2)) * sin(radians(p.latitude)))) AS distance,
             CAST(ps.quantity AS INTEGER) as quantity_int
           FROM pharmacies p
-          INNER JOIN pharmacy_stock ps ON p.pharmacy_id = ps.pharmacy_id
-          INNER JOIN medicine m ON ps.medicine_id = m.medicine_id
+          INNER JOIN pharmacy_stocks ps ON p.pharmacy_id = ps.pharmacy_id
+          INNER JOIN medicines m ON ps.medicine_id = m.medicine_id
           WHERE p.is_verified = true
-            AND CAST(ps.quantity AS INTEGER) > 0
             AND (m.brand_name ILIKE $1 OR m.generic_name ILIKE $1)
           ORDER BY distance ASC, p.is_open DESC, quantity_int DESC
         `;
@@ -188,10 +187,9 @@ const pharmacyController = {
             ps.expiry_date,
             CAST(ps.quantity AS INTEGER) as quantity_int
           FROM pharmacies p
-          INNER JOIN pharmacy_stock ps ON p.pharmacy_id = ps.pharmacy_id
-          INNER JOIN medicine m ON ps.medicine_id = m.medicine_id
+          INNER JOIN pharmacy_stocks ps ON p.pharmacy_id = ps.pharmacy_id
+          INNER JOIN medicines m ON ps.medicine_id = m.medicine_id
           WHERE p.is_verified = true
-            AND CAST(ps.quantity AS INTEGER) > 0
             AND (m.brand_name ILIKE $1 OR m.generic_name ILIKE $1)
           ORDER BY p.is_open DESC, quantity_int DESC
         `;

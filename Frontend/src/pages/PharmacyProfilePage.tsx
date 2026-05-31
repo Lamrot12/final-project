@@ -1,48 +1,17 @@
 import { Button } from "@/components/ui/button";
-import { MapPin, Phone, Clock, Star, CheckCircle } from "lucide-react";
+import { MapPin, Phone, Clock, Star, CheckCircle, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export function PharmacyProfilePage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
-        {/* Pharmacy Header */}
-        <div className="bg-card border border-border rounded-xl p-6 mb-6">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <h1 className="text-3xl font-bold text-foreground">Abeba Pharmacy</h1>
-                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
-                  <CheckCircle className="w-4 h-4" />
-                  Verified
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground mb-3">
-                <MapPin className="w-4 h-4" />
-                <span>Bole Road, Near Edna Mall, Addis Ababa</span>
-              </div>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                <div className="flex items-center gap-1">
-                  <Phone className="w-4 h-4" />
-                  <span>+251 911 123 456</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
-                  <span>8:00 AM - 9:00 PM</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 mb-4">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Star key={star} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                ))}
-                <span className="text-muted-foreground ml-2">(4.8 from 120 reviews)</span>
-              </div>
-            </div>
-            <Button size="lg" className="gap-2">
-              <MapPin className="w-5 h-5" />
-              Get Directions
-            </Button>
-          </div>
+        {/* Back Button */}
+        <div className="mb-6">
+          <Link to="/search" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Search
+          </Link>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -163,7 +132,7 @@ export function PharmacyProfilePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-foreground">Bole Road, Addis Ababa</span>
+                  <span className="text-slate-500">Bole Road, Addis Ababa</span>
                 </div>
               </div>
               <Button className="w-full mt-4">Call Now</Button>

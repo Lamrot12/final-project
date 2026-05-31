@@ -1,0 +1,21 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+fastapi
+uvicorn
+torch
+transformers
+pillow
+rapidfuzz
+sentence-transformers
+faiss-cpu
+kagglehub
+google-genai
+httpx
+pydantic
+pydantic-settings
+python-multipart
+pytest
+pandas
+numpy
+huggingface-hub
+dotenv
+python-dotenv

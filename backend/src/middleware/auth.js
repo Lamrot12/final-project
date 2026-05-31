@@ -49,7 +49,7 @@ const authMiddleware = {
       if (req.user.userType === 'pharmacy' && req.user.userId) {
         console.log('Searching for pharmacy by user_id:', req.user.userId);
         const result = await pool.query(
-          'SELECT pharmacy_id FROM pharmacy WHERE user_id = $1',
+          'SELECT pharmacy_id FROM pharmacies WHERE user_id = $1',
           [req.user.userId]
         );
 

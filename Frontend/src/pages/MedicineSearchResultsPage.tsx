@@ -215,7 +215,7 @@ export function MedicineSearchResultsPage() {
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <h3 className="text-xl font-bold text-slate-900 mb-2">{result.pharmacy_name}</h3>
-                        <p className="text-sm text-slate-500 flex items-center gap-2">
+                        <p className="text-sm text-slate-400 flex items-center gap-2">
                           <MapPin className="w-4 h-4" />
                           {result.address}
                         </p>
