@@ -22,7 +22,6 @@ router.get('/nearby', pharmacyController.getNearbyPharmacies);
 router.get('/email/:email', pharmacyController.getPharmacyByEmail);
 router.get('/search-by-medicine', pharmacyController.searchPharmaciesByMedicine);
 router.get('/', pharmacyController.getAllPharmacies);
-router.get('/:id', pharmacyController.getPharmacyById);
 router.get('/:pharmacyId/inventory', pharmacyController.getPharmacyInventory);
 router.get('/:pharmacyId/license', pharmacyController.getPharmacyLicense);
 router.put('/update', authMiddleware.authenticate, pharmacyController.updatePharmacy);
@@ -35,4 +34,9 @@ router.get(
   authMiddleware.authenticate,
   pharmacyController.getAllPharmaciesForAdmin
 );
+router.put(
+  '/:pharmacy_id/verification-status',
+  pharmacyController.updateVerificationStatus
+);
+router.get('/:id', pharmacyController.getPharmacyById);
 module.exports = router;

@@ -251,7 +251,46 @@ const pharmacyController = {
     res.status(500).json({ error: 'Failed to get pharmacies' });
   }
 },
+async updateVerificationStatus(req, res) {
+  try {
+    const { pharmacy_id } = req.params;
+    const { is_verified } = req.body;
 
+    if (typeof is_verified !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: 'is_verified must be true or false'
+      });
+    }
+
+    const pharmacy = await Pharmacy.updateVerificationStatus(
+      pharmacy_id,
+      is_verified
+    );
+
+    if (!pharmacy) {
+      return res.status(404).json({
+        success: false,
+        error: 'Pharmacy not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Pharmacy ${
+        is_verified ? 'approved' : 'rejected'
+      } successfully`,
+      pharmacy
+    });
+  } catch (error) {
+    console.error('Error updating verification status:', error);
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update verification status'
+    });
+  }
+},
   async updatePharmacyLicense(req, res) {
     try {
       const { pharmacyId } = req.params;

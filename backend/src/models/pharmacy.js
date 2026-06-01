@@ -41,6 +41,17 @@ class Pharmacy {
     const result = await pool.query(query, [id]);
     return result.rows[0];
   }
+  static async updateVerificationStatus(pharmacyId, isVerified) {
+  const query = `
+    UPDATE pharmacies
+    SET is_verified = $1
+    WHERE pharmacy_id = $2
+    RETURNING *
+  `;
+
+  const result = await pool.query(query, [isVerified, pharmacyId]);
+  return result.rows[0];
+}
 
   static async findAllForAdmin() {
   const query = `

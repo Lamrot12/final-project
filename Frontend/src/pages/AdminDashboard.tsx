@@ -316,30 +316,45 @@ const confirmLicenseAction = async () => {
   
   setIsProcessing(true);
   try {
-    let response;
     const token = localStorage.getItem('token');
     
     switch (licenseActionType) {
       case 'deactivate':
-        response = await axios.put(
-          `http://localhost:5000/api/pharmacies/${selectedLicenseForAction.pharmacy_id}/deactivate`,
-          { is_active: false, reason: 'License related issue' },
-          { headers: { Authorization: `Bearer ${token}` } }
+        // Use PATCH to set is_verified = false
+        const deactivateResponse = await axios.put(
+          `http://localhost:5000/api/pharmacies/${selectedLicenseForAction.pharmacy_id}/verification-status`,
+          { is_verified: false },
+          { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
         );
-        toast.success(`Pharmacy ${selectedLicenseForAction.pharmacy_name} has been deactivated`);
+        if (deactivateResponse.data.success) {
+          toast.success(`${selectedLicenseForAction.pharmacy_name} has been deactivated successfully`);
+          await fetchAllLicenses();
+          await fetchPharmacies();
+        } else {
+          toast.error(deactivateResponse.data.error || 'Failed to deactivate');
+        }
         break;
         
       case 'activate':
-        response = await axios.put(
-          `http://localhost:5000/api/pharmacies/${selectedLicenseForAction.pharmacy_id}/activate`,
-          { is_active: true },
-          { headers: { Authorization: `Bearer ${token}` } }
+        // Use PATCH to set is_verified = true
+        const activateResponse = await axios.put(
+          `http://localhost:5000/api/pharmacies/${selectedLicenseForAction.pharmacy_id}/verification-status`,
+          { is_verified: true },
+          { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
         );
-        toast.success(`Pharmacy ${selectedLicenseForAction.pharmacy_name} has been reactivated`);
+        if (activateResponse.data.success) {
+          toast.success(`${selectedLicenseForAction.pharmacy_name} has been activated successfully`);
+          await fetchAllLicenses();
+          await fetchPharmacies();
+        } else {
+          toast.error(activateResponse.data.error || 'Failed to activate');
+        }
         break;
         
+        
       case 'suspend':
-        response = await axios.put(
+        // You'll need to create this endpoint in your backend
+        const suspendResponse = await axios.put(
           `http://localhost:5000/api/pharmacies/${selectedLicenseForAction.pharmacy_id}/suspend`,
           { is_suspended: true, suspended_until: new Date(Date.now() + 30*24*60*60*1000).toISOString() },
           { headers: { Authorization: `Bearer ${token}` } }
@@ -367,7 +382,7 @@ const confirmLicenseAction = async () => {
           toast.error('Please enter new expiry date');
           return;
         }
-        response = await axios.put(
+        const extendResponse = await axios.put(
           `http://localhost:5000/api/pharmacy-licenses/${selectedLicenseForAction.license_id}/extend`,
           { new_expiry_date: licenseRenewalData.new_expiry_date },
           { headers: { Authorization: `Bearer ${token}` } }
@@ -380,7 +395,7 @@ const confirmLicenseAction = async () => {
           toast.error('Please fill all renewal information');
           return;
         }
-        response = await axios.post(
+        const renewResponse = await axios.post(
           `http://localhost:5000/api/pharmacy-licenses/${selectedLicenseForAction.pharmacy_id}/renew`,
           licenseRenewalData,
           { headers: { Authorization: `Bearer ${token}` } }
@@ -398,7 +413,7 @@ const confirmLicenseAction = async () => {
     
   } catch (error: any) {
     console.error('Error performing license action:', error);
-    toast.error(error.response?.data?.message || 'Failed to perform action');
+    toast.error(error.response?.data?.message || error.response?.data?.error || 'Failed to perform action');
   } finally {
     setIsProcessing(false);
   }
@@ -900,6 +915,20 @@ const getLicenseStatusColor = (daysLeft: number) => {
     setRevenueBreakdown(breakdown);
     setShowRevenueModal(true);
   };
+  // Close license dropdown when clicking outside
+useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    if (selectedLicenseForAction) {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.license-dropdown') && !target.closest('.license-action-button')) {
+        setSelectedLicenseForAction(null);
+      }
+    }
+  };
+  
+  document.addEventListener('click', handleClickOutside);
+  return () => document.removeEventListener('click', handleClickOutside);
+}, [selectedLicenseForAction]);
 
   useEffect(() => {
     fetchUsers();
@@ -1631,16 +1660,7 @@ useEffect(() => {
             </button>
           )}
           
-          <button
-            onClick={() => {
-              window.location.href = `mailto:${pharmacy.contact_email}`;
-              setSelectedPharmacyForAction(null);
-            }}
-            className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
-          >
-            <Mail size={14} />
-            Contact Pharmacy
-          </button>
+      
           
           <button
             onClick={() => {
@@ -1986,23 +2006,23 @@ useEffect(() => {
                   </td>
                   
                   {/* Actions Column with Dropdown */}
-                  <td className="p-4">
-                    <div className="relative">
-                      <button
-                        onClick={() => {
-                          setSelectedLicenseForAction(
-                            selectedLicenseForAction?.license_id === license.license_id ? null : license
-                          );
-                        }}
-                        className="p-2 bg-gray-500/20 rounded-lg text-gray-600 hover:bg-gray-500/30 transition-colors"
-                        title="More Actions"
-                      >
-                        <MoreVertical size={18} />
-                      </button>
+                <td className="p-4">
+  <div className="relative">
+    <button
+      onClick={() => {
+        setSelectedLicenseForAction(
+          selectedLicenseForAction?.license_id === license.license_id ? null : license
+        );
+      }}
+      className="p-2 bg-gray-500/20 rounded-lg text-gray-600 hover:bg-gray-500/30 transition-colors license-action-button"
+      title="More Actions"
+    >
+      <MoreVertical size={18} />
+    </button>
                       
                       {/* Dropdown Menu */}
                       {selectedLicenseForAction?.license_id === license.license_id && (
-                        <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                            <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20 license-dropdown">
                           <div className="py-1">
                             {/* View License Document */}
                             <button
@@ -2016,49 +2036,26 @@ useEffect(() => {
                               View License Document
                             </button>
                             
-                            {/* Extend License - for expiring licenses */}
-                            {daysLeft <= 30 && daysLeft >= 0 && (
-                              <button
-                                onClick={() => {
-                                  handleLicenseAction(license, 'extend');
-                                  setSelectedLicenseForAction(null);
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-yellow-600 hover:bg-yellow-50 flex items-center gap-2"
-                              >
-                                <Calendar size={14} />
-                                Extend License
-                              </button>
-                            )}
                             
-                            {/* Send Warning - for expiring soon */}
-                            {daysLeft <= 15 && daysLeft >= 0 && (
-                              <button
-                                onClick={() => {
-                                  handleLicenseAction(license, 'warning');
-                                  setSelectedLicenseForAction(null);
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2"
-                              >
-                                <AlertCircle size={14} />
-                                Send Warning
-                              </button>
-                            )}
-                            
-                            {/* Deactivate/Activate Pharmacy */}
-                            <button
-                              onClick={() => {
-                                handleLicenseAction(license, license.is_verified ? 'deactivate' : 'activate');
-                                setSelectedLicenseForAction(null);
-                              }}
-                              className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
-                                license.is_verified 
-                                  ? 'text-red-600 hover:bg-red-50' 
-                                  : 'text-green-600 hover:bg-green-50'
-                              }`}
-                            >
-                              {license.is_verified ? <XCircle size={14} /> : <CheckCircle size={14} />}
-                              {license.is_verified ? 'Deactivate Pharmacy' : 'Activate Pharmacy'}
-                            </button>
+                          {/* Deactivate/Activate Pharmacy */}
+<button
+  onClick={(e) => {
+    e.stopPropagation(); // Prevent event bubbling
+    setSelectedLicenseForAction(null); // Close dropdown first
+    // Use setTimeout to ensure dropdown closes before modal opens
+    setTimeout(() => {
+      handleLicenseAction(license, license.is_verified ? 'deactivate' : 'activate');
+    }, 50);
+  }}
+  className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
+    license.is_verified 
+      ? 'text-red-600 hover:bg-red-50' 
+      : 'text-green-600 hover:bg-green-50'
+  }`}
+>
+  {license.is_verified ? <XCircle size={14} /> : <CheckCircle size={14} />}
+  {license.is_verified ? 'Set as Inactive' : 'Set as Active'}
+</button>
                             
                             <hr className="my-1 border-gray-200" />
                             
@@ -2102,17 +2099,7 @@ useEffect(() => {
                               View Full Details
                             </button>
                             
-                            {/* Contact Pharmacy */}
-                            <button
-                              onClick={() => {
-                                window.location.href = `mailto:${license.contact_email}`;
-                                setSelectedLicenseForAction(null);
-                              }}
-                              className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
-                            >
-                              <Mail size={14} />
-                              Contact Pharmacy
-                            </button>
+                         
                           </div>
                         </div>
                       )}
@@ -4612,58 +4599,7 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* Action-specific content */}
-          {(licenseActionType === 'extend' || licenseActionType === 'renew') && (
-            <div className="space-y-4">
-              <h3 className="font-semibold text-[#009689]">Renewal Information</h3>
-              
-              <div>
-                <label className="text-gray-700 text-sm block mb-2">New Expiry Date *</label>
-                <input
-                  type="date"
-                  value={licenseRenewalData.new_expiry_date}
-                  onChange={(e) => setLicenseRenewalData({ ...licenseRenewalData, new_expiry_date: e.target.value })}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#009689] focus:border-[#009689]"
-                />
-              </div>
-              
-              {licenseActionType === 'renew' && (
-                <>
-                  <div>
-                    <label className="text-gray-700 text-sm block mb-2">New License Number *</label>
-                    <input
-                      type="text"
-                      value={licenseRenewalData.new_license_number}
-                      onChange={(e) => setLicenseRenewalData({ ...licenseRenewalData, new_license_number: e.target.value })}
-                      placeholder="Enter new license number"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#009689] focus:border-[#009689]"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-gray-700 text-sm block mb-2">Renewal Document (Optional)</label>
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          // Handle file upload
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setLicenseRenewalData({ ...licenseRenewalData, renewal_document_url: reader.result as string });
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#009689] focus:border-[#009689]"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+         
 
           {/* Warning Message */}
           <div className={`p-4 rounded-lg ${
