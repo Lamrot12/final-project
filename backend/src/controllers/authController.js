@@ -1,8 +1,44 @@
 const User = require('../models/user');
 const Pharmacy = require('../models/pharmacy');
 const jwt = require('jsonwebtoken');
+const { pool } = require('../config/database');
+const crypto = require('crypto');
 
 const authController = {
+  async verifyEmail(req, res) {
+    try {
+      const { token } = req.params;
+
+      const result = await pool.query(
+        `
+        UPDATE users
+        SET is_verified = true,
+            verification_token = NULL
+        WHERE verification_token = $1
+        RETURNING *
+        `,
+        [token]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(400).json({
+          message: 'Invalid token'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Email verified successfully'
+      });
+
+    } catch (error) {
+      res.status(500).json({
+        error: error.message
+      });
+    }
+  },
+
+
   async register(req, res) {
     try {
       const { email, password, full_name, phone, user_type } = req.body;
@@ -19,26 +55,42 @@ const authController = {
       if (!roleId) {
         return res.status(400).json({ error: 'Invalid user type' });
       }
-      
+       const verificationToken = crypto.randomBytes(32).toString('hex');
       const user = await User.create({
         email,
         password,
         full_name,
         phone,
-        role_id: roleId
+        role_id: roleId,
+        verification_token: verificationToken
       });
-      
+      const transporter = require('../config/email');
+
+const verificationLink =
+  `http://localhost:5000/api/auth/verify-email/${verificationToken}`;
+
+await transporter.sendMail({
+  from: process.env.EMAIL_USER,
+  to: email,
+  subject: 'Verify Your Email',
+  html: `
+    <h2>Welcome to PharmaLink</h2>
+    <p>Click the button below to verify your email.</p>
+
+    <a href="${verificationLink}">
+      Verify Email
+    </a>
+  `
+});
       const token = jwt.sign(
         { userId: user.user_id, userType: roleName },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRE || '7d' }
       );
       
-      res.status(201).json({
-        message: 'User registered successfully',
-        user,
-        token
-      });
+    res.status(201).json({
+  message: 'Registration successful. Please verify your email.',
+});
     } catch (error) {
       console.error('Error registering user:', error);
       res.status(500).json({ error: 'Failed to register user' });
@@ -60,10 +112,17 @@ const authController = {
       }
       
       const user = await User.findByEmail(trimmedEmail);
-      if (!user) {
-        console.log('User not found:', trimmedEmail);
-        return res.status(401).json({ error: 'Invalid credentials' });
-      }
+     if (!user) {
+  return res.status(401).json({ error: 'Invalid credentials' });
+}
+
+if (!user.is_verified) {
+  return res.status(403).json({
+    error: 'Email not verified',
+    message: 'Please verify your email first'
+  });
+}
+if (user.is_verified !== true)
       
       console.log('User found:', { userId: user.user_id, email: user.email, userType: user.role_name });
       

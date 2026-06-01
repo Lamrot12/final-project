@@ -18,6 +18,7 @@ export function PatientRegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -44,16 +45,20 @@ export function PatientRegisterPage() {
     setLoading(true);
 
     try {
-      const response = await api.register({
-        email: formData.email,
-        password: formData.password,
-        full_name: formData.fullName,
-        phone: formData.phone,
-        user_type: 'patient'
-      });
+     const response = await api.register({
+  email: formData.email,
+  password: formData.password,
+  full_name: formData.fullName,
+  phone: formData.phone,
+  user_type: 'patient'
+});
 
-      console.log('Registration successful:', response);
-      setSuccess(true);
+console.log('Registration response:', response);
+
+// show message instead of "success state"
+setError('');
+setSuccessMessage(response.message || 'Check your email to verify your account');
+setSuccess(true);
       
       // Redirect to login after 2 seconds
       setTimeout(() => {
@@ -74,8 +79,20 @@ export function PatientRegisterPage() {
           <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-600" />
           </div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">Registration Successful!</h2>
-          <p className="text-muted-foreground mb-4">Your account has been created successfully.</p>
+          <h2 className="text-2xl font-bold text-foreground mb-2">
+  Check Your Email
+</h2>
+
+<p className="text-muted-foreground mb-4">
+  {successMessage}
+</p>
+
+<p className="text-sm text-muted-foreground">
+  You must verify your email before logging in.
+</p>
+<Button onClick={() => navigate('/login')}>
+  Go to Login
+</Button>
           <p className="text-sm text-muted-foreground">Redirecting to login page...</p>
         </div>
       </div>

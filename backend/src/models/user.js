@@ -3,15 +3,15 @@ const bcrypt = require('bcryptjs');
 
 class User {
   static async create(userData, client = null) {
-    const { email, password, full_name, phone, role_id } = userData;
+    const { email, password, full_name, phone, role_id, verification_token } = userData;
     const hashedPassword = await bcrypt.hash(password, 10);
     
     const query = `
-      INSERT INTO "users" (email, password_hash, full_name, phone, role_id)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING user_id, email, full_name, phone, role_id, is_active, created_at
+      INSERT INTO "users" (email, password_hash, full_name, phone, role_id,  verification_token, is_verified)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
     `;
-    const values = [email, hashedPassword, full_name, phone, role_id];
+    const values = [email, hashedPassword, full_name, phone, role_id,  verification_token, false];
     
     if (client) {
       const result = await client.query(query, values);

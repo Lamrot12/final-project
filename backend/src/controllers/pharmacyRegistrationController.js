@@ -4,7 +4,8 @@ const Pharmacy = require('../models/pharmacy');
 const PharmacyLicense = require('../models/pharmacyLicense');
 const { uploadToCloudinary } = require('../config/cloudinary');
 const path = require('path');
-
+const crypto = require('crypto');
+const transporter = require('../config/email');
 const pharmacyRegistrationController = {
   async register(req, res) {
     const client = await pool.connect();
@@ -51,6 +52,8 @@ const pharmacyRegistrationController = {
       if (!pharmacyRoleId) {
         return res.status(500).json({ error: 'Pharmacy role not found' });
       }
+      const verificationToken =
+       crypto.randomBytes(32).toString('hex');
 
       // Create user first
       const user = await User.create({
@@ -58,7 +61,8 @@ const pharmacyRegistrationController = {
         password: staffPassword,
         full_name: fullName,
         phone: staffPhone,
-        role_id: pharmacyRoleId
+        role_id: pharmacyRoleId,
+        verification_token: verificationToken
       }, client);
 
       // Create pharmacy (not verified yet)
@@ -98,6 +102,21 @@ const pharmacyRegistrationController = {
       }, client);
 
       await client.query('COMMIT');
+      const verificationLink =
+  `http://localhost:5000/api/auth/verify-email/${verificationToken}`;
+
+await transporter.sendMail({
+  from: process.env.EMAIL_USER,
+  to: staffEmail,
+  subject: 'Verify Your Email',
+  html: `
+    <h2>Welcome to PharmaLink</h2>
+    <p>Please verify your email address.</p>
+    <a href="${verificationLink}">
+      Verify Email
+    </a>
+  `
+});
 
       const warnings = [];
       if (licenseDocumentError) {

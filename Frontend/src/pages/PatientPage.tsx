@@ -24,7 +24,7 @@ export function PatientPage() {
   const [showPhoneNumbers, setShowPhoneNumbers] = useState<Set<string>>(new Set());
   const [processingPrescription, setProcessingPrescription] = useState(false);
   const [prescriptionError, setPrescriptionError] = useState<string | null>(null);
-
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   useEffect(() => {
     const token = localStorage.getItem('token');
     setIsLoggedIn(!!token);
@@ -199,15 +199,23 @@ export function PatientPage() {
                 <span className="hidden sm:inline">Medicine Chat</span>
               </Button>
             </Link>
-            <Link to="/">
-              <Button variant="outline" className="gap-2 text-xs sm:text-sm px-2 sm:px-4">
-                {isLoggedIn ? (
-                  <><LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Logout</span></>
-                ) : (
-                  <><ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">Go Back</span></>
-                )}
-              </Button>
-            </Link>
+          <Button 
+  variant="outline" 
+  className="gap-2 text-xs sm:text-sm px-2 sm:px-4"
+  onClick={() => {
+    if (isLoggedIn) {
+      setShowLogoutConfirm(true);
+    } else {
+      navigate('/');
+    }
+  }}
+>
+  {isLoggedIn ? (
+    <><LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Logout</span></>
+  ) : (
+    <><ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">Go Back</span></>
+  )}
+</Button>
           </div>
         </div>
       </header>
@@ -579,6 +587,44 @@ export function PatientPage() {
         </div>
       )}
       </div>
+      {/* Logout Confirmation Modal */}
+{showLogoutConfirm && (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+          <LogOut className="w-5 h-5 text-red-600" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900">Confirm Logout</h3>
+      </div>
+      
+      <p className="text-slate-600 mb-6">
+        Are you sure you want to log out? You will need to log in again to access your account.
+      </p>
+      
+      <div className="flex gap-3">
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => setShowLogoutConfirm(false)}
+        >
+          Cancel
+        </Button>
+        <Button
+          className="flex-1 bg-red-600 hover:bg-red-700"
+          onClick={() => {
+            localStorage.removeItem('token');
+            setIsLoggedIn(false);
+            setShowLogoutConfirm(false);
+            navigate('/');
+          }}
+        >
+          Yes, Logout
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
