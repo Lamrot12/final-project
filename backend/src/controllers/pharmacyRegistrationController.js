@@ -13,8 +13,8 @@ const pharmacyRegistrationController = {
       await client.query('BEGIN');
 
       // Get uploaded files
-      const storefrontImage = req.files?.storefrontImage?.[0];
-      const licenseDocument = req.files?.licenseDocument?.[0];
+      //const storefrontImage = req.files?.storefrontImage?.[0];
+      const licenseDocument =  req.file;
 
       // Get form data
       const {
@@ -44,6 +44,7 @@ const pharmacyRegistrationController = {
       if (existingUser) {
         return res.status(400).json({ error: 'User with this email already exists' });
       }
+
 
       // Get pharmacy role ID
       const pharmacyRoleId = await User.getRoleId('pharmacy');

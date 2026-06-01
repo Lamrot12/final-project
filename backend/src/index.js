@@ -15,6 +15,7 @@ const advertisementRoutes = require('./routes/advertisement.routes')
 const userRoutes = require('./routes/user.routes')
 const subscriptionPlanRoutes = require('./routes/subscriptionPlan.routes');
 const subscriptionRoutes = require("./routes/subscription.routes");
+const pharmacylicenseRoutes= require("./routes/pharmacyLicense.routes");
 const ocrRoutes = require('./routes/ocrRoutes');
 const { runSubscriptionCleanup } = require("./cron/subscriptionCleanup");
 const { runAdvertisementCleanup } = require("./cron/advertisementCleanup");
@@ -49,6 +50,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/subscription-plans", subscriptionPlanRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use('/api/ocr', ocrRoutes);
+app.use("/api/pharmacy-licenses",pharmacylicenseRoutes);
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'PharmaLink API is running' });

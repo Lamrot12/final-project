@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Pill, User, Mail, Lock, Phone, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
+import { Pill, User, Mail, Lock, Phone, ArrowLeft, CheckCircle, AlertCircle , Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 
@@ -18,6 +18,8 @@ export function PatientRegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
@@ -176,13 +178,20 @@ export function PatientRegisterPage() {
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Create a password"
                     className="pl-12 h-12 border-2 focus:border-primary"
                     value={formData.password}
                     onChange={handleChange}
                     required
                   />
+                  <button
+                     type="button"
+                     onClick={() => setShowPassword(!showPassword)}
+                     className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                       >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
               </div>
 
@@ -192,13 +201,20 @@ export function PatientRegisterPage() {
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="confirmPassword"
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     placeholder="Confirm your password"
                     className="pl-12 h-12 border-2 focus:border-primary"
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     required
                   />
+                  <button
+                     type="button"
+                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                     className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
+                       >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
               </div>
 

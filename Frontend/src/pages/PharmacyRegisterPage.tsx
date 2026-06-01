@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Eye, EyeOff } from "lucide-react";
 
 export function PharmacyRegisterPage() {
   const navigate = useNavigate();
@@ -35,7 +36,8 @@ export function PharmacyRegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [licenseDocument, setLicenseDocument] = useState<File | null>(null);
-
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [geocodeTimeout, setGeocodeTimeout] = useState<NodeJS.Timeout | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -344,29 +346,49 @@ export function PharmacyRegisterPage() {
                 {/* Password */}
                 <div className="space-y-2">
                   <Label htmlFor="staffPassword" className="text-xs font-semibold text-slate-700">Password *</Label>
+                  <div className="relative">
+                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
                     id="staffPassword"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Create a password"
                     value={formData.staffPassword}
                     onChange={handleChange}
                     required
-                    className="w-full px-3.5 py-2 text-sm border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                  />
+                   className="w-full pl-10 pr-10 py-2 text-sm border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+    />
+                   <button
+                       type="button"
+                       onClick={() => setShowPassword(!showPassword)}
+                       className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                         >
+                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                   </button>
+                     </div>
                 </div>
                 {/* Confirm Password */}
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword" className="text-xs font-semibold text-slate-700">Confirm Password *</Label>
+                   <div className="relative">
+                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
                     id="confirmPassword"
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     placeholder="Confirm your password"
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     required
-                    className="w-full px-3.5 py-2 text-sm border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                  />
+                     className="w-full pl-10 pr-10 py-2 text-sm border border-slate-200 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+    />
+                   <button
+                     type="button"
+                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                             >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                   </button>
                 </div>
+                  </div>
                 {/* Staff Phone Number */}
                 <div className="space-y-2">
                   <Label htmlFor="staffPhone" className="text-xs font-semibold text-slate-700">Staff Phone Number *</Label>
