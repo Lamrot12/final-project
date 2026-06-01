@@ -30,5 +30,9 @@ router.put('/toggle-open', authMiddleware.authenticate, pharmacyController.toggl
 router.put('/:pharmacy_id/approve', authMiddleware.authenticate, pharmacyController.approvePharmacy);
 router.put('/:pharmacy_id/reject', authMiddleware.authenticate, pharmacyController.rejectPharmacy);
 router.put('/:pharmacyId/license', authMiddleware.authenticate, upload.single('licenseDocument'), pharmacyController.updatePharmacyLicense);
-
+router.get(
+  '/admin/pharmacies',
+  authMiddleware.authenticate,
+  pharmacyController.getAllPharmaciesForAdmin
+);
 module.exports = router;

@@ -242,6 +242,15 @@ const pharmacyController = {
       res.status(500).json({ error: 'Failed to get pharmacy license' });
     }
   },
+  async getAllPharmaciesForAdmin(req, res) {
+  try {
+    const pharmacies = await Pharmacy.findAllForAdmin();
+    res.json(pharmacies);
+  } catch (error) {
+    console.error('Error getting pharmacies for admin:', error);
+    res.status(500).json({ error: 'Failed to get pharmacies' });
+  }
+},
 
   async updatePharmacyLicense(req, res) {
     try {

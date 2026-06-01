@@ -198,6 +198,17 @@ const AdminDashboard: React.FC = () => {
   const [showAdPreviewModal, setShowAdPreviewModal] = useState(false);
   const [previewAd, setPreviewAd] = useState<Advertisement | null>(null);
   const [showRevenueModal, setShowRevenueModal] = useState(false);
+  // Add these new state variables
+const [showLicenseActionModal, setShowLicenseActionModal] = useState(false);
+const [selectedLicenseForAction, setSelectedLicenseForAction] = useState<ExtendedLicense | null>(null);
+const [licenseActionType, setLicenseActionType] = useState<'deactivate' | 'activate' | 'suspend' | 'warning' | 'extend' | 'renew' | null>(null);
+const [showLicenseStatusModal, setShowLicenseStatusModal] = useState(false);
+const [selectedLicenseStatus, setSelectedLicenseStatus] = useState<ExtendedLicense | null>(null);
+const [licenseRenewalData, setLicenseRenewalData] = useState({
+  new_expiry_date: '',
+  new_license_number: '',
+  renewal_document_url: ''
+});
   const [revenueBreakdown, setRevenueBreakdown] = useState<Array<{
     pharmacy_name: string;
     ad_title: string;
@@ -263,35 +274,150 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const fetchPharmacies = async () => {
-    setLoadingPharmacies(true);
-    try {
-      const response = await axios.get('http://localhost:5000/api/pharmacies', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+ const fetchPharmacies = async () => {
+  setLoadingPharmacies(true);
+  try {
+    // Change this to your new admin endpoint
+    const response = await axios.get('http://localhost:5000/api/pharmacies/admin/pharmacies', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    if (response.data && Array.isArray(response.data)) {
+      // The backend now returns owner_name directly from the JOIN
+      setPharmacies(response.data);
       
-      if (response.data && Array.isArray(response.data)) {
-        setPharmacies(response.data);
-        
-        const active = response.data.filter((p: Pharmacy) => p.is_verified === true).length;
-        const inactive = response.data.filter((p: Pharmacy) => p.is_verified === false).length;
-        
-        setStats(prev => ({
-          ...prev,
-          totalPharmacies: response.data.length,
-          activePharmacies: active,
-          inactivePharmacies: inactive,
-          subscribedPharmacies: Math.floor(response.data.length * 0.45)
-        }));
-      }
-    } catch (error) {
-      console.error('Error fetching pharmacies:', error);
-      toast.error('Failed to fetch pharmacies');
-    } finally {
-      setLoadingPharmacies(false);
+      const active = response.data.filter((p: Pharmacy) => p.is_verified === true).length;
+      const inactive = response.data.filter((p: Pharmacy) => p.is_verified === false).length;
+      
+      setStats(prev => ({
+        ...prev,
+        totalPharmacies: response.data.length,
+        activePharmacies: active,
+        inactivePharmacies: inactive,
+        subscribedPharmacies: Math.floor(response.data.length * 0.45)
+      }));
     }
-  };
+  } catch (error) {
+    console.error('Error fetching pharmacies:', error);
+    toast.error('Failed to fetch pharmacies');
+  } finally {
+    setLoadingPharmacies(false);
+  }
+};
+// License action handlers with professional confirmations
+const handleLicenseAction = (license: ExtendedLicense, action: 'deactivate' | 'activate' | 'suspend' | 'warning' | 'extend' | 'renew') => {
+  setSelectedLicenseForAction(license);
+  setLicenseActionType(action);
+  setShowLicenseActionModal(true);
+};
 
+const confirmLicenseAction = async () => {
+  if (!selectedLicenseForAction || !licenseActionType) return;
+  
+  setIsProcessing(true);
+  try {
+    let response;
+    const token = localStorage.getItem('token');
+    
+    switch (licenseActionType) {
+      case 'deactivate':
+        response = await axios.put(
+          `http://localhost:5000/api/pharmacies/${selectedLicenseForAction.pharmacy_id}/deactivate`,
+          { is_active: false, reason: 'License related issue' },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        toast.success(`Pharmacy ${selectedLicenseForAction.pharmacy_name} has been deactivated`);
+        break;
+        
+      case 'activate':
+        response = await axios.put(
+          `http://localhost:5000/api/pharmacies/${selectedLicenseForAction.pharmacy_id}/activate`,
+          { is_active: true },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        toast.success(`Pharmacy ${selectedLicenseForAction.pharmacy_name} has been reactivated`);
+        break;
+        
+      case 'suspend':
+        response = await axios.put(
+          `http://localhost:5000/api/pharmacies/${selectedLicenseForAction.pharmacy_id}/suspend`,
+          { is_suspended: true, suspended_until: new Date(Date.now() + 30*24*60*60*1000).toISOString() },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        toast.warning(`Pharmacy ${selectedLicenseForAction.pharmacy_name} has been suspended for 30 days`);
+        break;
+        
+      case 'warning':
+        // Send warning email/notification
+        await axios.post(
+          `http://localhost:5000/api/notifications/license-warning`,
+          {
+            pharmacy_id: selectedLicenseForAction.pharmacy_id,
+            license_number: selectedLicenseForAction.license_number,
+            expiry_date: selectedLicenseForAction.expiry_date,
+            days_left: Math.ceil((new Date(selectedLicenseForAction.expiry_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24))
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        toast.info(`Warning notification sent to ${selectedLicenseForAction.pharmacy_name}`);
+        break;
+        
+      case 'extend':
+        if (!licenseRenewalData.new_expiry_date) {
+          toast.error('Please enter new expiry date');
+          return;
+        }
+        response = await axios.put(
+          `http://localhost:5000/api/pharmacy-licenses/${selectedLicenseForAction.license_id}/extend`,
+          { new_expiry_date: licenseRenewalData.new_expiry_date },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        toast.success(`License extended for ${selectedLicenseForAction.pharmacy_name}`);
+        break;
+        
+      case 'renew':
+        if (!licenseRenewalData.new_expiry_date || !licenseRenewalData.new_license_number) {
+          toast.error('Please fill all renewal information');
+          return;
+        }
+        response = await axios.post(
+          `http://localhost:5000/api/pharmacy-licenses/${selectedLicenseForAction.pharmacy_id}/renew`,
+          licenseRenewalData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        toast.success(`License renewed successfully for ${selectedLicenseForAction.pharmacy_name}`);
+        break;
+    }
+    
+    await fetchAllLicenses();
+    await fetchPharmacies();
+    setShowLicenseActionModal(false);
+    setSelectedLicenseForAction(null);
+    setLicenseActionType(null);
+    setLicenseRenewalData({ new_expiry_date: '', new_license_number: '', renewal_document_url: '' });
+    
+  } catch (error: any) {
+    console.error('Error performing license action:', error);
+    toast.error(error.response?.data?.message || 'Failed to perform action');
+  } finally {
+    setIsProcessing(false);
+  }
+};
+
+// View license status details
+const viewLicenseStatus = (license: ExtendedLicense) => {
+  setSelectedLicenseStatus(license);
+  setShowLicenseStatusModal(true);
+};
+
+// Get status color for license
+const getLicenseStatusColor = (daysLeft: number) => {
+  if (daysLeft < 0) return 'text-red-600 bg-red-100 border-red-200';
+  if (daysLeft <= 7) return 'text-red-500 bg-red-50 border-red-100';
+  if (daysLeft <= 30) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+  if (daysLeft <= 60) return 'text-orange-600 bg-orange-50 border-orange-200';
+  return 'text-green-600 bg-green-50 border-green-200';
+};
   const fetchAllLicenses = async () => {
     setLoadingLicenses(true);
     try {
@@ -782,6 +908,21 @@ const AdminDashboard: React.FC = () => {
     fetchAdvertisementPlans();
     fetchAllLicenses();
   }, []);
+  // Add this after your existing useEffects
+useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    if (selectedPharmacyForAction) {
+      const target = event.target as HTMLElement;
+      // Check if click is outside the dropdown
+      if (!target.closest('.action-dropdown') && !target.closest('.action-button')) {
+        setSelectedPharmacyForAction(null);
+      }
+    }
+  };
+  
+  document.addEventListener('click', handleClickOutside);
+  return () => document.removeEventListener('click', handleClickOutside);
+}, [selectedPharmacyForAction]);
 
   useEffect(() => {
     if (subscriptionPlans.length > 0 || pharmacies.length > 0) {
@@ -1377,8 +1518,6 @@ const AdminDashboard: React.FC = () => {
                           <th className="text-left p-4 text-[#009689]/60 font-medium">Contact</th>
                           <th className="text-left p-4 text-[#009689]/60 font-medium">Status</th>
                           <th className="text-left p-4 text-[#009689]/60 font-medium">Registered</th>
-                          <th className="text-left p-4 text-[#009689]/60 font-medium">Verified</th>
-                          <th className="text-left p-4 text-[#009689]/60 font-medium">Verified By</th>
                           <th className="text-left p-4 text-[#009689]/60 font-medium">License</th>
                           <th className="text-left p-4 text-[#009689]/60 font-medium">Owner</th>
                           <th className="text-left p-4 text-[#009689]/60 font-medium">Actions</th>
@@ -1410,12 +1549,6 @@ const AdminDashboard: React.FC = () => {
                             <td className="p-4 text-[#009689]/60 text-sm">
                               {new Date(pharmacy.created_at).toLocaleDateString()}
                             </td>
-                            <td className="p-4 text-[#009689]/60 text-sm">
-                              {pharmacy.verified_at ? new Date(pharmacy.verified_at).toLocaleDateString() : '-'}
-                            </td>
-                            <td className="p-4 text-[#009689]/80 text-sm">
-                              {pharmacy.verified_by_name || '-'}
-                            </td>
                             <td className="p-4">
                               <button
                                 onClick={() => {
@@ -1428,11 +1561,103 @@ const AdminDashboard: React.FC = () => {
                               </button>
                             </td>
                             <td className="p-4 text-[#009689]/80 text-sm">{pharmacy.owner_name}</td>
-                            <td className="p-4">
-                              <button className="text-[#009689]/60 hover:text-[#009689] transition-colors">
-                                <MoreVertical size={18} />
-                              </button>
-                            </td>
+                           <td className="p-4">
+  <div className="relative">
+    <button 
+      onClick={() => {
+        // Toggle dropdown - close if same pharmacy, open if different
+        setSelectedPharmacyForAction(
+          selectedPharmacyForAction?.pharmacy_id === pharmacy.pharmacy_id ? null : pharmacy
+        );
+      }}
+      className="text-[#009689]/60 hover:text-[#009689] transition-colors p-2 rounded-lg hover:bg-white/30 action-button"
+    >
+      <MoreVertical size={18} />
+    </button>
+    
+    {/* Dropdown Menu */}
+    {selectedPharmacyForAction?.pharmacy_id === pharmacy.pharmacy_id && (
+      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10 action-dropdown">
+        <div className="py-1">
+          <button
+            onClick={() => {
+              setSelectedPharmacy(pharmacy);
+              setShowLicenseModal(true);
+              setSelectedPharmacyForAction(null);
+            }}
+            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+          >
+            <Eye size={14} />
+            View Details
+          </button>
+          
+          {!pharmacy.is_verified && (
+            <button
+              onClick={() => {
+                handleApproveClick(pharmacy);
+                setSelectedPharmacyForAction(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
+            >
+              <CheckCircle size={14} />
+              Approve Pharmacy
+            </button>
+          )}
+          
+          {!pharmacy.is_verified && (
+            <button
+              onClick={() => {
+                handleRejectClick(pharmacy);
+                setSelectedPharmacyForAction(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+            >
+              <XCircle size={14} />
+              Reject Pharmacy
+            </button>
+          )}
+          
+          {pharmacy.is_verified && (
+            <button
+              onClick={() => {
+                setPharmacyToDeactivate(pharmacy);
+                setShowDeactivateConfirm(true);
+                setSelectedPharmacyForAction(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2"
+            >
+              <AlertCircle size={14} />
+              Deactivate Account
+            </button>
+          )}
+          
+          <button
+            onClick={() => {
+              window.location.href = `mailto:${pharmacy.contact_email}`;
+              setSelectedPharmacyForAction(null);
+            }}
+            className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+          >
+            <Mail size={14} />
+            Contact Pharmacy
+          </button>
+          
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(pharmacy.pharmacy_id);
+              toast.success('Pharmacy ID copied to clipboard');
+              setSelectedPharmacyForAction(null);
+            }}
+            className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 flex items-center gap-2"
+          >
+            <FileText size={14} />
+            Copy Pharmacy ID
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
+</td>
                           </motion.tr>
                         ))}
                       </tbody>
@@ -1557,271 +1782,358 @@ const AdminDashboard: React.FC = () => {
                   </div>
 
                   <div className="bg-white/40 backdrop-blur-xl rounded-2xl overflow-hidden border border-white/50 shadow-sm">
-                    {loadingLicenses ? (
-                      <div className="flex items-center justify-center py-20">
-                        <Loader2 size={40} className="animate-spin text-[#009689]" />
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead className="bg-white/30 backdrop-blur">
-                            <tr className="border-b border-[#009689]/10">
-                              <th className="text-left p-4 text-[#009689]/70 font-medium">License Image</th>
-                              <th className="text-left p-4 text-[#009689]/70 font-medium">Pharmacy Name</th>
-                              <th className="text-left p-4 text-[#009689]/70 font-medium">Contact Info</th>
-                              <th className="text-left p-4 text-[#009689]/70 font-medium">License Number</th>
-                              <th className="text-left p-4 text-[#009689]/70 font-medium">Expiry Date</th>
-                              <th className="text-left p-4 text-[#009689]/70 font-medium">Days Left</th>
-                              <th className="text-left p-4 text-[#009689]/70 font-medium">Status</th>
-                              <th className="text-left p-4 text-[#009689]/70 font-medium">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(() => {
-                              const processedLicenses = allLicenses
-                                .filter(license => {
-                                  if (licenseFilter === 'all') return true;
-                                  const status = getLicenseStatus(license.expiry_date).status;
-                                  return status === licenseFilter;
-                                })
-                                .filter(license => {
-                                  const searchLower = licenseSearchTerm.toLowerCase();
-                                  return license.pharmacy_name?.toLowerCase().includes(searchLower) ||
-                                         license.license_number?.toLowerCase().includes(searchLower);
-                                })
-                                .map(license => {
-                                  const today = new Date();
-                                  const expiry = new Date(license.expiry_date);
-                                  const daysLeft = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 3600 * 24));
-                                  const licenseStatus = getLicenseStatus(license.expiry_date);
-                                  
-                                  return {
-                                    ...license,
-                                    daysLeft,
-                                    licenseStatus
-                                  };
-                                })
-                                .sort((a, b) => a.daysLeft - b.daysLeft);
+  {loadingLicenses ? (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 size={40} className="animate-spin text-[#009689]" />
+    </div>
+  ) : (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead className="bg-white/30 backdrop-blur">
+          <tr className="border-b border-[#009689]/10">
+            <th className="text-left p-4 text-[#009689]/70 font-medium">License Image</th>
+            <th className="text-left p-4 text-[#009689]/70 font-medium">Pharmacy Name</th>
+            <th className="text-left p-4 text-[#009689]/70 font-medium">License Number</th>
+            <th className="text-left p-4 text-[#009689]/70 font-medium">Expiry Date</th>
+            <th className="text-left p-4 text-[#009689]/70 font-medium">Days Left</th>
+            <th className="text-left p-4 text-[#009689]/70 font-medium">Pharmacy Status</th>
+            <th className="text-left p-4 text-[#009689]/70 font-medium">License Status</th>
+            <th className="text-left p-4 text-[#009689]/70 font-medium">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(() => {
+            const processedLicenses = allLicenses
+              .filter(license => {
+                if (licenseFilter === 'all') return true;
+                const status = getLicenseStatus(license.expiry_date).status;
+                return status === licenseFilter;
+              })
+              .filter(license => {
+                const searchLower = licenseSearchTerm.toLowerCase();
+                return license.pharmacy_name?.toLowerCase().includes(searchLower) ||
+                       license.license_number?.toLowerCase().includes(searchLower);
+              })
+              .map(license => {
+                const today = new Date();
+                const expiry = new Date(license.expiry_date);
+                const daysLeft = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 3600 * 24));
+                const licenseStatus = getLicenseStatus(license.expiry_date);
+                
+                return {
+                  ...license,
+                  daysLeft,
+                  licenseStatus
+                };
+              })
+              .sort((a, b) => a.daysLeft - b.daysLeft);
 
-                              return processedLicenses.map((license) => {
-                                const { daysLeft, licenseStatus } = license;
-                                
-                                let rowBgClass = '';
-                                let rowBorderClass = '';
-                                if (daysLeft < 0) {
-                                  rowBgClass = 'bg-red-50/50';
-                                  rowBorderClass = 'border-l-4 border-l-red-500';
-                                } else if (daysLeft <= 7) {
-                                  rowBgClass = 'bg-red-50/30';
-                                  rowBorderClass = 'border-l-4 border-l-red-400';
-                                } else if (daysLeft <= 15) {
-                                  rowBgClass = 'bg-orange-50/30';
-                                  rowBorderClass = 'border-l-4 border-l-orange-400';
-                                } else if (daysLeft <= 30) {
-                                  rowBgClass = 'bg-yellow-50/30';
-                                  rowBorderClass = 'border-l-4 border-l-yellow-500';
-                                } else if (daysLeft <= 60) {
-                                  rowBgClass = 'bg-green-50/20';
-                                  rowBorderClass = 'border-l-4 border-l-green-400';
-                                }
-                                
-                                let daysLeftColor = '';
-                                let daysLeftBg = '';
-                                if (daysLeft < 0) {
-                                  daysLeftColor = 'text-red-700';
-                                  daysLeftBg = 'bg-red-100';
-                                } else if (daysLeft <= 7) {
-                                  daysLeftColor = 'text-red-600';
-                                  daysLeftBg = 'bg-red-100';
-                                } else if (daysLeft <= 15) {
-                                  daysLeftColor = 'text-orange-600';
-                                  daysLeftBg = 'bg-orange-100';
-                                } else if (daysLeft <= 30) {
-                                  daysLeftColor = 'text-yellow-600';
-                                  daysLeftBg = 'bg-yellow-100';
-                                } else if (daysLeft <= 60) {
-                                  daysLeftColor = 'text-green-600';
-                                  daysLeftBg = 'bg-green-100';
-                                } else {
-                                  daysLeftColor = 'text-green-600';
-                                  daysLeftBg = 'bg-green-50';
-                                }
-                                
-                                return (
-                                  <motion.tr
-                                    key={license.license_id}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className={`border-b border-[#009689]/10 hover:bg-white/30 transition-all ${rowBgClass} ${rowBorderClass}`}
-                                  >
-                                    <td className="p-4">
-                                      <div
-                                        onClick={() => {
-                                          window.open(license.license_document_url, '_blank');
-                                        }}
-                                        className="relative w-16 h-16 bg-white/30 rounded-lg overflow-hidden cursor-pointer group shadow-sm"
-                                      >
-                                        {license.license_document_url ? (
-                                          <img
-                                            src={license.license_document_url}
-                                            alt="License"
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                                          />
-                                        ) : (
-                                          <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                                            <FileText size={24} className="text-[#009689]/40" />
-                                          </div>
-                                        )}
-                                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                          <Eye size={16} className="text-white" />
-                                        </div>
-                                      </div>
-                                    </td>
-                                    
-                                    <td className="p-4">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-gradient-to-br from-[#009689] to-[#007a6f] rounded-full flex items-center justify-center">
-                                          <Store size={16} className="text-white" />
-                                        </div>
-                                        <div>
-                                          <p className="text-[#009689] font-medium">{license.pharmacy_name || 'Unknown'}</p>
-                                          <p className="text-[#009689]/50 text-xs truncate max-w-[150px]">{license.address?.substring(0, 40) || 'No address'}</p>
-                                        </div>
-                                      </div>
-                                    </td>
-                                    
-                                    <td className="p-4">
-                                      <div className="space-y-1">
-                                        <div className="flex items-center gap-1 text-[#009689]/70 text-xs">
-                                          <Mail size={12} />
-                                          <span className="truncate max-w-[120px]">{license.contact_email || 'N/A'}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1 text-[#009689]/70 text-xs">
-                                          <Phone size={12} />
-                                          <span>{license.contact_phone || 'N/A'}</span>
-                                        </div>
-                                      </div>
-                                    </td>
-                                    
-                                    <td className="p-4">
-                                      <p className="text-[#009689]/80 font-mono text-sm">{license.license_number}</p>
-                                    </td>
-                                    
-                                    <td className="p-4">
-                                      <p className={`font-semibold ${licenseStatus.textClass}`}>
-                                        {new Date(license.expiry_date).toLocaleDateString()}
-                                      </p>
-                                    </td>
-                                    
-                                    <td className="p-4">
-                                      <div className="flex flex-col items-start">
-                                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${daysLeftBg} ${daysLeftColor}`}>
-                                          {daysLeft < 0 ? (
-                                            <>Expired {Math.abs(daysLeft)} days ago</>
-                                          ) : daysLeft === 0 ? (
-                                            <>Expires today!</>
-                                          ) : (
-                                            <>{daysLeft} days left</>
-                                          )}
-                                        </span>
-                                        {daysLeft > 0 && daysLeft <= 90 && (
-                                          <div className="w-full mt-2">
-                                            <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                              <div 
-                                                className={`h-1.5 rounded-full transition-all duration-500 ${
-                                                  daysLeft <= 7 ? 'bg-red-500' :
-                                                  daysLeft <= 15 ? 'bg-orange-500' :
-                                                  daysLeft <= 30 ? 'bg-yellow-500' :
-                                                  daysLeft <= 60 ? 'bg-green-500' : 'bg-emerald-500'
-                                                }`}
-                                                style={{ width: `${Math.min(100, (daysLeft / 90) * 100)}%` }}
-                                              />
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </td>
-                                    
-                                    <td className="p-4">
-                                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${licenseStatus.bgClass} ${licenseStatus.textClass}`}>
-                                        <div className={`w-2 h-2 rounded-full ${
-                                          licenseStatus.color === 'red' ? 'bg-red-500 animate-pulse' : 
-                                          licenseStatus.color === 'yellow' ? 'bg-yellow-500' : 
-                                          'bg-green-500'
-                                        }`} />
-                                        {licenseStatus.text}
-                                      </span>
-                                    </td>
-                                    
-                                    <td className="p-4">
-                                      <div className="flex gap-2">
-                                        <motion.button
-                                          whileHover={{ scale: 1.05 }}
-                                          whileTap={{ scale: 0.95 }}
-                                          onClick={() => {
-                                            window.open(license.license_document_url, '_blank');
-                                          }}
-                                          className="p-2 bg-purple-500/20 rounded-lg text-purple-600 hover:bg-purple-500/30 transition-colors"
-                                          title="View License Document"
-                                        >
-                                          <FileText size={16} />
-                                        </motion.button>
-                                        <motion.button
-                                          whileHover={{ scale: 1.05 }}
-                                          whileTap={{ scale: 0.95 }}
-                                          onClick={() => {
-                                            const pharmacyObj: Pharmacy = {
-                                              pharmacy_id: license.pharmacy_id,
-                                              pharmacy_name: license.pharmacy_name || 'Unknown',
-                                              latitude: license.latitude || 0,
-                                              longitude: license.longitude || 0,
-                                              address: license.address || '',
-                                              contact_phone: license.contact_phone || '',
-                                              contact_email: license.contact_email || '',
-                                              operating_hours: license.operating_hours || '',
-                                              user_id: '',
-                                              is_verified: license.is_verified || false,
-                                              created_at: '',
-                                              verified_at: null,
-                                              verified_by: null,
-                                              verified_by_name: '',
-                                              owner_name: '',
-                                            };
-                                            const licenseObj: License = {
-                                              license_id: license.license_id,
-                                              license_number: license.license_number,
-                                              issue_date: license.issue_date,
-                                              expiry_date: license.expiry_date,
-                                              license_document_url: license.license_document_url,
-                                              pharmacy_id: license.pharmacy_id,
-                                              verification_status: license.verification_status,
-                                            };
-                                            setSelectedLicenseForDetails({ pharmacy: pharmacyObj, license: licenseObj });
-                                            setShowLicenseDetailsModal(true);
-                                          }}
-                                          className="p-2 bg-blue-500/20 rounded-lg text-blue-600 hover:bg-blue-500/30 transition-colors"
-                                          title="View Details"
-                                        >
-                                          <Eye size={16} />
-                                        </motion.button>
-                                      </div>
-                                    </td>
-                                  </motion.tr>
-                                );
-                              });
-                            })()}
-                          </tbody>
-                        </table>
+            return processedLicenses.map((license) => {
+              const { daysLeft, licenseStatus } = license;
+              
+              let rowBgClass = '';
+              let rowBorderClass = '';
+              if (daysLeft < 0) {
+                rowBgClass = 'bg-red-50/50';
+                rowBorderClass = 'border-l-4 border-l-red-500';
+              } else if (daysLeft <= 7) {
+                rowBgClass = 'bg-red-50/30';
+                rowBorderClass = 'border-l-4 border-l-red-400';
+              } else if (daysLeft <= 15) {
+                rowBgClass = 'bg-orange-50/30';
+                rowBorderClass = 'border-l-4 border-l-orange-400';
+              } else if (daysLeft <= 30) {
+                rowBgClass = 'bg-yellow-50/30';
+                rowBorderClass = 'border-l-4 border-l-yellow-500';
+              } else if (daysLeft <= 60) {
+                rowBgClass = 'bg-green-50/20';
+                rowBorderClass = 'border-l-4 border-l-green-400';
+              }
+              
+              let daysLeftColor = '';
+              let daysLeftBg = '';
+              if (daysLeft < 0) {
+                daysLeftColor = 'text-red-700';
+                daysLeftBg = 'bg-red-100';
+              } else if (daysLeft <= 7) {
+                daysLeftColor = 'text-red-600';
+                daysLeftBg = 'bg-red-100';
+              } else if (daysLeft <= 15) {
+                daysLeftColor = 'text-orange-600';
+                daysLeftBg = 'bg-orange-100';
+              } else if (daysLeft <= 30) {
+                daysLeftColor = 'text-yellow-600';
+                daysLeftBg = 'bg-yellow-100';
+              } else if (daysLeft <= 60) {
+                daysLeftColor = 'text-green-600';
+                daysLeftBg = 'bg-green-100';
+              } else {
+                daysLeftColor = 'text-green-600';
+                daysLeftBg = 'bg-green-50';
+              }
+              
+              return (
+                <motion.tr
+                  key={license.license_id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className={`border-b border-[#009689]/10 hover:bg-white/30 transition-all ${rowBgClass} ${rowBorderClass}`}
+                >
+                  {/* License Image Column */}
+                  <td className="p-4">
+                    <div
+                      onClick={() => {
+                        window.open(license.license_document_url, '_blank');
+                      }}
+                      className="relative w-16 h-16 bg-white/30 rounded-lg overflow-hidden cursor-pointer group shadow-sm"
+                    >
+                      {license.license_document_url ? (
+                        <img
+                          src={license.license_document_url}
+                          alt="License"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                          <FileText size={24} className="text-[#009689]/40" />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Eye size={16} className="text-white" />
                       </div>
-                    )}
-                    
-                    {!loadingLicenses && allLicenses.length === 0 && (
-                      <div className="text-center py-12">
-                        <Calendar size={48} className="text-[#009689]/20 mx-auto mb-4" />
-                        <p className="text-[#009689]/40">No license information available</p>
+                    </div>
+                  </td>
+                  
+                  {/* Pharmacy Name Column */}
+                  <td className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-[#009689] to-[#007a6f] rounded-full flex items-center justify-center">
+                        <Store size={16} className="text-white" />
                       </div>
-                    )}
-                  </div>
+                      <div>
+                        <p className="text-[#009689] font-medium">{license.pharmacy_name || 'Unknown'}</p>
+                        <p className="text-[#009689]/50 text-xs truncate max-w-[150px]">
+                          {license.address?.substring(0, 40) || 'No address'}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  
+                  {/* License Number Column */}
+                  <td className="p-4">
+                    <p className="text-[#009689]/80 font-mono text-sm">{license.license_number}</p>
+                  </td>
+                  
+                  {/* Expiry Date Column */}
+                  <td className="p-4">
+                    <p className={`font-semibold ${licenseStatus.textClass}`}>
+                      {new Date(license.expiry_date).toLocaleDateString()}
+                    </p>
+                  </td>
+                  
+                  {/* Days Left Column */}
+                  <td className="p-4">
+                    <div className="flex flex-col items-start">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${daysLeftBg} ${daysLeftColor}`}>
+                        {daysLeft < 0 ? (
+                          <>Expired {Math.abs(daysLeft)} days ago</>
+                        ) : daysLeft === 0 ? (
+                          <>Expires today!</>
+                        ) : (
+                          <>{daysLeft} days left</>
+                        )}
+                      </span>
+                      {daysLeft > 0 && daysLeft <= 90 && (
+                        <div className="w-full mt-2">
+                          <div className="w-full bg-gray-200 rounded-full h-1.5">
+                            <div 
+                              className={`h-1.5 rounded-full transition-all duration-500 ${
+                                daysLeft <= 7 ? 'bg-red-500' :
+                                daysLeft <= 15 ? 'bg-orange-500' :
+                                daysLeft <= 30 ? 'bg-yellow-500' :
+                                daysLeft <= 60 ? 'bg-green-500' : 'bg-emerald-500'
+                              }`}
+                              style={{ width: `${Math.min(100, (daysLeft / 90) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  
+                  {/* Pharmacy Status Column */}
+                  <td className="p-4">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+                      license.is_verified 
+                        ? 'bg-green-500/20 text-green-600' 
+                        : 'bg-red-500/20 text-red-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${license.is_verified ? 'bg-green-500' : 'bg-red-500'}`} />
+                      {license.is_verified ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  
+                  {/* License Status Column */}
+                  <td className="p-4">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${licenseStatus.bgClass} ${licenseStatus.textClass}`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        licenseStatus.color === 'red' ? 'bg-red-500 animate-pulse' : 
+                        licenseStatus.color === 'yellow' ? 'bg-yellow-500' : 
+                        'bg-green-500'
+                      }`} />
+                      {licenseStatus.text}
+                    </span>
+                  </td>
+                  
+                  {/* Actions Column with Dropdown */}
+                  <td className="p-4">
+                    <div className="relative">
+                      <button
+                        onClick={() => {
+                          setSelectedLicenseForAction(
+                            selectedLicenseForAction?.license_id === license.license_id ? null : license
+                          );
+                        }}
+                        className="p-2 bg-gray-500/20 rounded-lg text-gray-600 hover:bg-gray-500/30 transition-colors"
+                        title="More Actions"
+                      >
+                        <MoreVertical size={18} />
+                      </button>
+                      
+                      {/* Dropdown Menu */}
+                      {selectedLicenseForAction?.license_id === license.license_id && (
+                        <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                          <div className="py-1">
+                            {/* View License Document */}
+                            <button
+                              onClick={() => {
+                                window.open(license.license_document_url, '_blank');
+                                setSelectedLicenseForAction(null);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <FileText size={14} />
+                              View License Document
+                            </button>
+                            
+                            {/* Extend License - for expiring licenses */}
+                            {daysLeft <= 30 && daysLeft >= 0 && (
+                              <button
+                                onClick={() => {
+                                  handleLicenseAction(license, 'extend');
+                                  setSelectedLicenseForAction(null);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-yellow-600 hover:bg-yellow-50 flex items-center gap-2"
+                              >
+                                <Calendar size={14} />
+                                Extend License
+                              </button>
+                            )}
+                            
+                            {/* Send Warning - for expiring soon */}
+                            {daysLeft <= 15 && daysLeft >= 0 && (
+                              <button
+                                onClick={() => {
+                                  handleLicenseAction(license, 'warning');
+                                  setSelectedLicenseForAction(null);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2"
+                              >
+                                <AlertCircle size={14} />
+                                Send Warning
+                              </button>
+                            )}
+                            
+                            {/* Deactivate/Activate Pharmacy */}
+                            <button
+                              onClick={() => {
+                                handleLicenseAction(license, license.is_verified ? 'deactivate' : 'activate');
+                                setSelectedLicenseForAction(null);
+                              }}
+                              className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
+                                license.is_verified 
+                                  ? 'text-red-600 hover:bg-red-50' 
+                                  : 'text-green-600 hover:bg-green-50'
+                              }`}
+                            >
+                              {license.is_verified ? <XCircle size={14} /> : <CheckCircle size={14} />}
+                              {license.is_verified ? 'Deactivate Pharmacy' : 'Activate Pharmacy'}
+                            </button>
+                            
+                            <hr className="my-1 border-gray-200" />
+                            
+                            {/* View Pharmacy Details */}
+                            <button
+                              onClick={() => {
+                                // Open pharmacy details modal
+                                const pharmacyObj: Pharmacy = {
+                                  pharmacy_id: license.pharmacy_id,
+                                  pharmacy_name: license.pharmacy_name || 'Unknown',
+                                  latitude: license.latitude || 0,
+                                  longitude: license.longitude || 0,
+                                  address: license.address || '',
+                                  contact_phone: license.contact_phone || '',
+                                  contact_email: license.contact_email || '',
+                                  operating_hours: license.operating_hours || '',
+                                  user_id: '',
+                                  is_verified: license.is_verified || false,
+                                  created_at: '',
+                                  verified_at: null,
+                                  verified_by: null,
+                                  verified_by_name: '',
+                                  owner_name: '',
+                                };
+                                const licenseObj: License = {
+                                  license_id: license.license_id,
+                                  license_number: license.license_number,
+                                  issue_date: license.issue_date,
+                                  expiry_date: license.expiry_date,
+                                  license_document_url: license.license_document_url,
+                                  pharmacy_id: license.pharmacy_id,
+                                  verification_status: license.verification_status,
+                                };
+                                setSelectedLicenseForDetails({ pharmacy: pharmacyObj, license: licenseObj });
+                                setShowLicenseDetailsModal(true);
+                                setSelectedLicenseForAction(null);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                            >
+                              <Eye size={14} />
+                              View Full Details
+                            </button>
+                            
+                            {/* Contact Pharmacy */}
+                            <button
+                              onClick={() => {
+                                window.location.href = `mailto:${license.contact_email}`;
+                                setSelectedLicenseForAction(null);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                            >
+                              <Mail size={14} />
+                              Contact Pharmacy
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </motion.tr>
+              );
+            });
+          })()}
+        </tbody>
+      </table>
+    </div>
+  )}
+  
+  {!loadingLicenses && allLicenses.length === 0 && (
+    <div className="text-center py-12">
+      <Calendar size={48} className="text-[#009689]/20 mx-auto mb-4" />
+      <p className="text-[#009689]/40">No license information available</p>
+    </div>
+  )}
+</div>
                 </div>
               )}
             </motion.div>
@@ -4218,6 +4530,228 @@ const AdminDashboard: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* License Action Confirmation Modal */}
+<AnimatePresence>
+  {showLicenseActionModal && selectedLicenseForAction && licenseActionType && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={() => setShowLicenseActionModal(false)}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 50 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 50 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className="relative max-w-2xl w-full max-h-[85vh] overflow-y-auto bg-white/95 backdrop-blur-xl rounded-2xl border border-white/50 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className={`sticky top-0 p-6 border-b ${
+          licenseActionType === 'deactivate' ? 'bg-red-500' :
+          licenseActionType === 'activate' ? 'bg-green-500' :
+          licenseActionType === 'suspend' ? 'bg-orange-500' :
+          licenseActionType === 'warning' ? 'bg-yellow-500' :
+          'bg-[#009689]'
+        } text-white`}>
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold">
+                {licenseActionType === 'deactivate' && 'Deactivate License'}
+                {licenseActionType === 'activate' && 'Activate License'}
+                {licenseActionType === 'suspend' && 'Suspend License'}
+                {licenseActionType === 'warning' && 'Send License Warning'}
+                {licenseActionType === 'extend' && 'Extend License'}
+                {licenseActionType === 'renew' && 'Renew License'}
+              </h2>
+              <p className="text-white/80 mt-1">
+                {selectedLicenseForAction.pharmacy_name}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowLicenseActionModal(false)}
+              className="text-white/60 hover:text-white"
+            >
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* License Information Summary */}
+          <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+            <h3 className="font-semibold text-gray-700 mb-2">License Information</h3>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-gray-500">License Number</p>
+                <p className="font-mono text-gray-700">{selectedLicenseForAction.license_number}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Expiry Date</p>
+                <p className="font-semibold text-red-600">{new Date(selectedLicenseForAction.expiry_date).toLocaleDateString()}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Days Remaining</p>
+                <p className={`font-bold ${
+                  Math.ceil((new Date(selectedLicenseForAction.expiry_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24)) < 0 
+                    ? 'text-red-600' 
+                    : 'text-green-600'
+                }`}>
+                  {Math.ceil((new Date(selectedLicenseForAction.expiry_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24))} days
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-500">Current Status</p>
+                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${
+                  selectedLicenseForAction.is_verified ? 'bg-green-500/20 text-green-600' : 'bg-red-500/20 text-red-600'
+                }`}>
+                  {selectedLicenseForAction.is_verified ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action-specific content */}
+          {(licenseActionType === 'extend' || licenseActionType === 'renew') && (
+            <div className="space-y-4">
+              <h3 className="font-semibold text-[#009689]">Renewal Information</h3>
+              
+              <div>
+                <label className="text-gray-700 text-sm block mb-2">New Expiry Date *</label>
+                <input
+                  type="date"
+                  value={licenseRenewalData.new_expiry_date}
+                  onChange={(e) => setLicenseRenewalData({ ...licenseRenewalData, new_expiry_date: e.target.value })}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#009689] focus:border-[#009689]"
+                />
+              </div>
+              
+              {licenseActionType === 'renew' && (
+                <>
+                  <div>
+                    <label className="text-gray-700 text-sm block mb-2">New License Number *</label>
+                    <input
+                      type="text"
+                      value={licenseRenewalData.new_license_number}
+                      onChange={(e) => setLicenseRenewalData({ ...licenseRenewalData, new_license_number: e.target.value })}
+                      placeholder="Enter new license number"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#009689] focus:border-[#009689]"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="text-gray-700 text-sm block mb-2">Renewal Document (Optional)</label>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          // Handle file upload
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setLicenseRenewalData({ ...licenseRenewalData, renewal_document_url: reader.result as string });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#009689] focus:border-[#009689]"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Warning Message */}
+          <div className={`p-4 rounded-lg ${
+            licenseActionType === 'deactivate' ? 'bg-red-50 border border-red-200' :
+            licenseActionType === 'activate' ? 'bg-green-50 border border-green-200' :
+            licenseActionType === 'suspend' ? 'bg-orange-50 border border-orange-200' :
+            licenseActionType === 'warning' ? 'bg-yellow-50 border border-yellow-200' :
+            'bg-blue-50 border border-blue-200'
+          }`}>
+            <div className="flex items-start gap-3">
+              <AlertCircle size={20} className={
+                licenseActionType === 'deactivate' ? 'text-red-600' :
+                licenseActionType === 'activate' ? 'text-green-600' :
+                licenseActionType === 'suspend' ? 'text-orange-600' :
+                licenseActionType === 'warning' ? 'text-yellow-600' :
+                'text-blue-600'
+              } />
+              <div>
+                <p className="font-semibold text-gray-800">
+                  {licenseActionType === 'deactivate' && '⚠️ Warning: Deactivating License'}
+                  {licenseActionType === 'activate' && 'ℹ️ Information: Activating License'}
+                  {licenseActionType === 'suspend' && '⚠️ Warning: Suspending License'}
+                  {licenseActionType === 'warning' && '📧 Send Warning Notification'}
+                  {licenseActionType === 'extend' && '📅 Extend License Validity'}
+                  {licenseActionType === 'renew' && '🔄 Renew License'}
+                </p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {licenseActionType === 'deactivate' && `This will immediately deactivate ${selectedLicenseForAction.pharmacy_name}'s license. The pharmacy will not be able to operate until reactivated.`}
+                  {licenseActionType === 'activate' && `This will reactivate ${selectedLicenseForAction.pharmacy_name}'s license. The pharmacy will be able to resume normal operations.`}
+                  {licenseActionType === 'suspend' && `This will suspend ${selectedLicenseForAction.pharmacy_name}'s license for 30 days. A suspension notice will be sent to the pharmacy.`}
+                  {licenseActionType === 'warning' && `This will send an official warning notification to ${selectedLicenseForAction.pharmacy_name} about their expiring license.`}
+                  {licenseActionType === 'extend' && `This will extend the license validity. Please enter the new expiry date based on the updated license document.`}
+                  {licenseActionType === 'renew' && `This will renew the license with new information. Please ensure all renewal documents are valid and up to date.`}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Confirmation Buttons */}
+          <div className="flex gap-3 pt-4">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={confirmLicenseAction}
+              disabled={isProcessing}
+              className={`flex-1 py-3 rounded-xl font-semibold disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm ${
+                licenseActionType === 'deactivate' ? 'bg-red-500 hover:bg-red-600' :
+                licenseActionType === 'activate' ? 'bg-green-500 hover:bg-green-600' :
+                licenseActionType === 'suspend' ? 'bg-orange-500 hover:bg-orange-600' :
+                licenseActionType === 'warning' ? 'bg-yellow-500 hover:bg-yellow-600' :
+                'bg-[#009689] hover:bg-[#007a6f]'
+              } text-white`}
+            >
+              {isProcessing ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <>
+                  {licenseActionType === 'deactivate' && <XCircle size={18} />}
+                  {licenseActionType === 'activate' && <CheckCircle size={18} />}
+                  {licenseActionType === 'suspend' && <AlertCircle size={18} />}
+                  {licenseActionType === 'warning' && <Mail size={18} />}
+                  {licenseActionType === 'extend' && <Calendar size={18} />}
+                  {licenseActionType === 'renew' && <RefreshCw size={18} />}
+                  Confirm {licenseActionType === 'deactivate' ? 'Deactivation' :
+                           licenseActionType === 'activate' ? 'Activation' :
+                           licenseActionType === 'suspend' ? 'Suspension' :
+                           licenseActionType === 'warning' ? 'Send Warning' :
+                           licenseActionType === 'extend' ? 'Extension' : 'Renewal'}
+                </>
+              )}
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => {
+                setShowLicenseActionModal(false);
+                setLicenseRenewalData({ new_expiry_date: '', new_license_number: '', renewal_document_url: '' });
+              }}
+              className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 rounded-xl font-semibold transition-colors"
+            >
+              Cancel
+            </motion.button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
     </div>
   );
 };

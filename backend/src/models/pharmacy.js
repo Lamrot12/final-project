@@ -42,6 +42,20 @@ class Pharmacy {
     return result.rows[0];
   }
 
+  static async findAllForAdmin() {
+  const query = `
+    SELECT 
+      p.*, 
+      u.full_name as owner_name,
+      u.email as owner_email,
+      u.phone as owner_phone
+    FROM pharmacies p
+    LEFT JOIN users u ON p.user_id = u.user_id
+    ORDER BY p.created_at DESC
+  `;
+  const result = await pool.query(query);
+  return result.rows;
+}
   static async findByUserId(userId) {
     const query = 'SELECT * FROM pharmacies WHERE user_id = $1';
     const result = await pool.query(query, [userId]);
