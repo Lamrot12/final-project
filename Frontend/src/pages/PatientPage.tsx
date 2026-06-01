@@ -125,7 +125,7 @@ export function PatientPage() {
         reviews: Math.floor(Math.random() * 200) + 50,
         isOpen: p.is_open !== false,
         phone: p.contact_phone || '+251 911 000 000',
-        image: "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=400&h=300&fit=crop"
+        image: p.pharmacy_image || "https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=400&h=300&fit=crop"
       })));
       
     } catch (err) {

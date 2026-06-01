@@ -364,7 +364,7 @@ export function PharmacyRegisterPage() {
                          >
                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                    </button>
-                     </div>
+                   </div>
                 </div>
                 {/* Confirm Password */}
                 <div className="space-y-2">
